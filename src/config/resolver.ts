@@ -10,12 +10,12 @@ import { WorkflowConfigSchema, type WorkflowConfig } from "./schema.js";
  * - Parses through Zod schema with defaults
  */
 export function resolveConfig(raw: Record<string, unknown>): WorkflowConfig {
-  const resolved = resolveEnvVars(raw, new Set(["hooks"]));
-  resolved.workspace = resolveWorkspacePaths(resolved.workspace);
+  const resolved = resolveEnvVars(raw, new Set(["hooks"])) as Record<string, unknown>;
+  resolved.workspace = resolveWorkspacePaths(resolved.workspace as Record<string, unknown>);
   return WorkflowConfigSchema.parse(resolved);
 }
 
-function resolveEnvVars(obj: unknown, skipKeys: Set<string>, currentKey?: string): any {
+function resolveEnvVars(obj: unknown, skipKeys: Set<string>, currentKey?: string): unknown {
   // Skip env var expansion inside hook scripts — the shell resolves those at runtime
   if (currentKey && skipKeys.has(currentKey)) return obj;
 
@@ -38,7 +38,7 @@ function resolveEnvVars(obj: unknown, skipKeys: Set<string>, currentKey?: string
   return obj;
 }
 
-function resolveWorkspacePaths(workspace: any): any {
+function resolveWorkspacePaths(workspace: Record<string, unknown>): Record<string, unknown> {
   if (!workspace || typeof workspace !== "object") return workspace;
   if (typeof workspace.root === "string") {
     workspace.root = resolvePath(workspace.root);

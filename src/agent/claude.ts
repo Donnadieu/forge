@@ -67,7 +67,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         try {
           const raw = JSON.parse(line);
           const mapped = this.mapEvent(raw);
-          if (mapped) yield mapped;
+          if (mapped) {
+            if (Array.isArray(mapped)) {
+              for (const event of mapped) yield event;
+            } else {
+              yield mapped;
+            }
+          }
         } catch {
           // Skip non-JSON lines (e.g. startup messages)
         }
@@ -100,46 +106,95 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     this.processes.delete(handle.id);
   }
 
-  private mapEvent(raw: Record<string, unknown>): AgentEvent | null {
-    // Claude stream-json event types:
-    // { type: "assistant", subtype: "text", text: "..." }
-    // { type: "assistant", subtype: "tool_use", tool: { name, id }, input: {...} }
-    // { type: "tool_result", content: [...] }
-    // { type: "result", result: "...", is_error: bool, session_id: "..." }
-    // { type: "system", subtype: "usage", ... usage fields }
-    // { type: "error", error: { message: "..." } }
-
+  private mapEvent(raw: Record<string, unknown>): AgentEvent | AgentEvent[] | null {
     const type = raw.type as string;
+    const subtype = raw.subtype as string | undefined;
 
     if (type === "assistant") {
-      const subtype = raw.subtype as string;
-      if (subtype === "text") {
-        return { type: "text", content: (raw.text as string) || "" };
+      // Per-event streaming format: { type: "assistant", subtype: "text", text: "..." }
+      if (subtype === "text" && typeof raw.text === "string") {
+        return { type: "text", content: raw.text };
       }
+
+      // Per-event streaming format: { type: "assistant", subtype: "tool_use", tool: {...}, input: {...} }
       if (subtype === "tool_use") {
-        const tool = raw.tool as { name: string } | undefined;
+        const tool = raw.tool as Record<string, unknown> | undefined;
         return {
           type: "tool_use",
-          tool: tool?.name || "unknown",
+          tool: (tool?.name as string) || "unknown",
           input: raw.input,
         };
       }
+
+      // Batch format: { type: "assistant", message: { content: [...], usage: {...} } }
+      const message = raw.message as Record<string, unknown> | undefined;
+      if (message) {
+        const events: AgentEvent[] = [];
+
+        const content = message.content as Array<Record<string, unknown>> | undefined;
+        if (content) {
+          for (const item of content) {
+            if (item.type === "text" && item.text) {
+              events.push({ type: "text", content: item.text as string });
+            }
+            if (item.type === "tool_use") {
+              events.push({
+                type: "tool_use",
+                tool: (item.name as string) || "unknown",
+                input: item.input,
+              });
+            }
+          }
+        }
+
+        const usage = message.usage as Record<string, number> | undefined;
+        if (usage) {
+          events.push({
+            type: "usage",
+            inputTokens:
+              (usage.input_tokens || 0) +
+              (usage.cache_read_input_tokens || 0) +
+              (usage.cache_creation_input_tokens || 0),
+            outputTokens: usage.output_tokens || 0,
+          });
+        }
+
+        return events.length > 0 ? events : null;
+      }
     }
 
+    // Tool result events: { type: "tool_result", content: [...] }
     if (type === "tool_result") {
-      return { type: "tool_result", output: raw.content };
+      return {
+        type: "tool_result",
+        output: raw.content,
+      };
+    }
+
+    // System usage events: { type: "system", subtype: "usage", input_tokens: N, output_tokens: N }
+    if (type === "system" && subtype === "usage") {
+      return {
+        type: "usage",
+        inputTokens: (raw.input_tokens as number) || 0,
+        outputTokens: (raw.output_tokens as number) || 0,
+      };
     }
 
     if (type === "result") {
-      return { type: "done", success: !raw.is_error };
-    }
-
-    if (type === "system" && (raw as Record<string, unknown>).subtype === "usage") {
-      return {
-        type: "usage",
-        inputTokens: ((raw as Record<string, unknown>).input_tokens as number) || 0,
-        outputTokens: ((raw as Record<string, unknown>).output_tokens as number) || 0,
-      };
+      const events: AgentEvent[] = [];
+      const usage = raw.usage as Record<string, number> | undefined;
+      if (usage) {
+        events.push({
+          type: "usage",
+          inputTokens:
+            (usage.input_tokens || 0) +
+            (usage.cache_read_input_tokens || 0) +
+            (usage.cache_creation_input_tokens || 0),
+          outputTokens: usage.output_tokens || 0,
+        });
+      }
+      events.push({ type: "done", success: !raw.is_error });
+      return events;
     }
 
     if (type === "error") {

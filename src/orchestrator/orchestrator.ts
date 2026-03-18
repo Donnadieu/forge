@@ -28,6 +28,7 @@ export interface OrchestratorCallbacks {
   onDispatch?: (issue: NormalizedIssue) => void;
   onComplete?: (issueId: string, result: WorkerResult) => void;
   onError?: (issueId: string, error: Error) => void;
+  onEvent?: (issueId: string, event: import("../agent/types.js").AgentEvent) => void;
   onReconcile?: (toKill: string[], toRetry: string[]) => void;
   onPollError?: (error: Error) => void;
 }
@@ -204,6 +205,7 @@ export class Orchestrator {
             this.state.totalTokens.output += event.outputTokens;
           }
         }
+        this.callbacks.onEvent?.(issueId, event);
       },
     })
       .then((result) => {
@@ -257,7 +259,7 @@ export class Orchestrator {
               "continuation",
               null,
               this.config.maxRetryDelayMs,
-              (retryId) => {
+              (_retryId) => {
                 this.dispatchIssue(issue, attempt + 1);
               },
               this.config.retryBaseDelayMs,

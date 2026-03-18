@@ -5,3 +5,4 @@ coverage/
 .env
 .DS_Store
 WORKFLOW.md
+logs/forge.log

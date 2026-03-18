@@ -11,10 +11,11 @@ workspace:
   hooks:
     after_create: |
       git clone --depth 1 $REPO_URL .
-      npm install
+      [ -f package.json ] && npm install || true
+      [ -f pyproject.toml ] && pip install -e ".[dev]" 2>/dev/null || true
     before_run: |
       git fetch origin
-      git checkout -b forge/{{ issue.identifier }} origin/main || git checkout forge/{{ issue.identifier }}
+      git checkout -b "$ISSUE_BRANCH" origin/main || git checkout "$ISSUE_BRANCH"
 
 agent:
   kind: claude
@@ -23,7 +24,7 @@ agent:
   stall_timeout_seconds: 300
   approval_policy: bypassPermissions
   turn_timeout_ms: 3600000
-  read_timeout_ms: 5000
+  read_timeout_ms: 60000
   max_retry_backoff_ms: 300000
 
 polling:

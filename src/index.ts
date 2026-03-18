@@ -178,6 +178,16 @@ const program = new Command()
             `Completed ${issueId}`,
           );
         },
+        onEvent: (issueId, event) => {
+          if (event.type === "tool_use") {
+            logger.info({ issueId, tool: event.tool }, `Tool: ${event.tool}`);
+          } else if (event.type === "usage") {
+            logger.info(
+              { issueId, input: event.inputTokens, output: event.outputTokens },
+              `Tokens: ${event.inputTokens} in / ${event.outputTokens} out`,
+            );
+          }
+        },
         onError: (issueId, error) => {
           logger.error({ issueId, error: error.message }, `Worker error for ${issueId}`);
         },
