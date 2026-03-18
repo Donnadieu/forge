@@ -13,7 +13,7 @@ const testIssue: NormalizedIssue = {
   state: "Todo",
   priority: 1,
   labels: [],
-  blockers: [],
+  blockedBy: [],
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
 };
@@ -84,6 +84,7 @@ describe("runWorker", () => {
     expect(result.issueId).toBe("issue-1");
     expect(result.turns).toBe(1);
     expect(result.success).toBe(true);
+    expect(result.workspacePath).toBeDefined();
     expect(workspace.ensureWorkspace).toHaveBeenCalledWith(testIssue);
     expect(workspace.runHook).toHaveBeenCalledWith("before_run", "/tmp/test-workspace");
     expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
@@ -248,6 +249,7 @@ describe("runWorker", () => {
     // Should still have run after_run hook
     expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
     expect(result.turns).toBe(1);
+    expect(result.success).toBe(false);
   });
 
   it("writes MCP config when mcpServers provided", async () => {

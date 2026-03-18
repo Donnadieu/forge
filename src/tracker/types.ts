@@ -4,10 +4,12 @@ export interface NormalizedIssue {
   title: string;
   description: string;
   state: string;
-  priority: number; // 0 = urgent, 4 = none
+  priority: number | null; // 0 = urgent, 4 = none, null = unset
   assignee?: string;
   labels: string[];
-  blockers: NormalizedIssue[];
+  branchName?: string;
+  url?: string;
+  blockedBy: Array<{ id?: string; identifier?: string; state?: string }>;
   createdAt: string; // ISO 8601
   updatedAt: string;
 }

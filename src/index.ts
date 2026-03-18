@@ -133,6 +133,7 @@ const program = new Command()
         pollIntervalMs: config.agent.poll_interval_seconds * 1000,
         maxConcurrentAgents: config.agent.max_concurrent_agents,
         maxTurns: config.agent.max_turns,
+        turnTimeoutMs: config.agent.turn_timeout_ms,
         stallTimeoutSeconds: config.agent.stall_timeout_seconds,
         maxRetryAttempts: config.retry.max_attempts,
         maxRetryDelayMs: config.retry.max_delay_seconds * 1000,

@@ -17,7 +17,7 @@ const testIssue: NormalizedIssue = {
   state: "Todo",
   priority: 1,
   labels: ["bug", "auth"],
-  blockers: [],
+  blockedBy: [],
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
 };
@@ -80,6 +80,11 @@ describe("renderPrompt", () => {
     expect(result).toContain("- bug");
     expect(result).toContain("- auth");
   });
+
+  it("throws on unknown variables in strict mode", () => {
+    const template = "{{ nonexistent_var }}";
+    expect(() => renderPrompt(template, buildPromptContext(testIssue))).toThrow();
+  });
 });
 
 describe("buildPromptContext", () => {
@@ -98,26 +103,19 @@ describe("buildPromptContext", () => {
     expect(context.attempt).toBe(2);
   });
 
-  it("maps blockers to simplified form", () => {
+  it("maps blockedBy to simplified form", () => {
     const issueWithBlockers: NormalizedIssue = {
       ...testIssue,
-      blockers: [
+      blockedBy: [
         {
           id: "blocker-1",
           identifier: "MT-41",
-          title: "Blocker issue",
-          description: "",
           state: "In Progress",
-          priority: 0,
-          labels: [],
-          blockers: [],
-          createdAt: "",
-          updatedAt: "",
         },
       ],
     };
     const context = buildPromptContext(issueWithBlockers);
-    expect(context.issue.blockers).toEqual([
+    expect(context.issue.blockedBy).toEqual([
       { id: "blocker-1", identifier: "MT-41", state: "In Progress" },
     ]);
   });

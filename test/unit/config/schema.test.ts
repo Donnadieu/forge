@@ -130,4 +130,42 @@ describe("WorkflowConfigSchema", () => {
     });
     expect(config.workspace.skills_dir).toBeUndefined();
   });
+
+  it("defaults active_states to Todo and In Progress when not provided", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+    });
+    expect(config.tracker.active_states).toEqual(["Todo", "In Progress"]);
+  });
+
+  it("accepts turn_timeout_ms and read_timeout_ms in agent config", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+      agent: {
+        turn_timeout_ms: 1_800_000,
+        read_timeout_ms: 10_000,
+      },
+    });
+    expect(config.agent.turn_timeout_ms).toBe(1_800_000);
+    expect(config.agent.read_timeout_ms).toBe(10_000);
+  });
+
+  it("accepts endpoint and api_key in tracker config", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        endpoint: "https://api.linear.app/graphql",
+        api_key: "lin_api_test123",
+      },
+    });
+    expect(config.tracker.endpoint).toBe("https://api.linear.app/graphql");
+    expect(config.tracker.api_key).toBe("lin_api_test123");
+  });
 });

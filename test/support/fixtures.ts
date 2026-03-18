@@ -53,7 +53,7 @@ export function createTestIssue(overrides: Partial<NormalizedIssue> = {}): Norma
     state: "Todo",
     priority: 2,
     labels: ["test"],
-    blockers: [],
+    blockedBy: [],
     createdAt: "2024-01-01T00:00:00Z",
     updatedAt: "2024-01-01T00:00:00Z",
     ...overrides,

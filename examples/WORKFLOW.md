@@ -23,6 +23,8 @@ agent:
   poll_interval_seconds: 30
   stall_timeout_seconds: 300
   approval_policy: bypassPermissions
+  turn_timeout_ms: 3600000
+  read_timeout_ms: 5000
 
 retry:
   max_attempts: 5
@@ -44,11 +46,11 @@ You are an expert software engineer working on ticket **{{ issue.identifier }}**
 
 {{ issue.labels | join: ", " }}
 
-{% if issue.blockers.size > 0 %}
+{% if issue.blockedBy.size > 0 %}
 ## Blockers
 
 These issues block this ticket:
-{% for blocker in issue.blockers %}
+{% for blocker in issue.blockedBy %}
 - {{ blocker.identifier }} ({{ blocker.state }})
 {% endfor %}
 {% endif %}

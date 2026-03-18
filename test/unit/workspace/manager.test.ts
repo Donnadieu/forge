@@ -65,7 +65,7 @@ describe("WorkspaceManager", () => {
         state: "Todo",
         priority: 1,
         labels: [],
-        blockers: [],
+        blockedBy: [],
         createdAt: "2024-01-01T00:00:00Z",
         updatedAt: "2024-01-01T00:00:00Z",
       });

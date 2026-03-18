@@ -13,7 +13,7 @@ function makeIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
     state: "In Progress",
     priority: 2,
     labels: [],
-    blockers: [],
+    blockedBy: [],
     createdAt: "2024-01-01T00:00:00Z",
     updatedAt: "2024-01-01T00:00:00Z",
     ...overrides,
@@ -115,5 +115,28 @@ describe("reconcileRunningIssues", () => {
     });
     expect(result.toRetry).toEqual([]);
     expect(result.toKill).toEqual([]);
+  });
+
+  it("returns empty result when fetchIssueStatesByIds throws", async () => {
+    const state = createInitialState();
+    state.running.set("id-1", makeRunningEntry());
+
+    const failingTracker = {
+      kind: "memory" as const,
+      fetchCandidates: async () => [],
+      fetchIssueStatesByIds: async () => {
+        throw new Error("API failure");
+      },
+      fetchTerminalIssues: async () => [],
+    };
+
+    const result = await reconcileRunningIssues(state, failingTracker, {
+      active_states: ["In Progress"],
+      terminal_states: ["Done"],
+      stall_timeout_seconds: 300,
+    });
+    expect(result.toKill).toEqual([]);
+    expect(result.toRetry).toEqual([]);
+    expect(result.staleIds).toEqual([]);
   });
 });

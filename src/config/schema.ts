@@ -4,7 +4,9 @@ export const WorkflowConfigSchema = z.object({
   tracker: z.object({
     kind: z.enum(["linear", "github", "jira"]),
     project_slug: z.string(),
-    active_states: z.array(z.string()),
+    endpoint: z.string().optional(),
+    api_key: z.string().optional(),
+    active_states: z.array(z.string()).default(["Todo", "In Progress"]),
     terminal_states: z.array(z.string()).default(["Done", "Closed", "Cancelled"]),
   }),
   workspace: z
@@ -28,6 +30,8 @@ export const WorkflowConfigSchema = z.object({
       max_concurrent_agents: z.number().default(10),
       max_concurrent_agents_by_state: z.record(z.string(), z.number()).default({}),
       max_turns: z.number().default(20),
+      turn_timeout_ms: z.number().default(3_600_000),
+      read_timeout_ms: z.number().default(5_000),
       poll_interval_seconds: z.number().default(30),
       stall_timeout_seconds: z.number().default(300),
       approval_policy: z.string().default("on-request"),
