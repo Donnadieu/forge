@@ -23,6 +23,18 @@ describe("calculateRetryDelay", () => {
   it("caps at max delay", () => {
     expect(calculateRetryDelay(10, "failure", 300_000)).toBe(300_000);
   });
+
+  it("uses custom base delay when provided", () => {
+    expect(calculateRetryDelay(1, "failure", 300_000, 5_000)).toBe(5_000);
+    expect(calculateRetryDelay(2, "failure", 300_000, 5_000)).toBe(10_000);
+    expect(calculateRetryDelay(3, "failure", 300_000, 5_000)).toBe(20_000);
+  });
+
+  it("uses default base delay when not provided", () => {
+    // Default is 10_000
+    expect(calculateRetryDelay(1, "failure", 300_000)).toBe(10_000);
+    expect(calculateRetryDelay(1, "failure", 300_000, undefined)).toBe(10_000);
+  });
 });
 
 describe("scheduleRetry", () => {

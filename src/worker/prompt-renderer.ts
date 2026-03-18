@@ -4,7 +4,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import type { NormalizedIssue } from "../tracker/types.js";
 
-const engine = new Liquid({ strictVariables: false, strictFilters: false });
+const engine = new Liquid({ strictVariables: true, strictFilters: true });
 
 export interface PromptContext {
   issue: {
@@ -13,10 +13,10 @@ export interface PromptContext {
     title: string;
     description: string;
     state: string;
-    priority: number;
+    priority: number | null;
     labels: string[];
     assignee?: string;
-    blockers: Array<{ id: string; identifier: string; state: string }>;
+    blockedBy: Array<{ id?: string; identifier?: string; state?: string }>;
   };
   attempt?: number;
   skills_manifest?: string;
@@ -40,8 +40,8 @@ export function buildPromptContext(
       state: issue.state,
       priority: issue.priority,
       labels: issue.labels,
-      assignee: issue.assignee,
-      blockers: issue.blockers.map((b) => ({
+      assignee: issue.assignee ?? "",
+      blockedBy: issue.blockedBy.map((b) => ({
         id: b.id,
         identifier: b.identifier,
         state: b.state,

@@ -13,7 +13,7 @@ const testIssue: NormalizedIssue = {
   state: "Todo",
   priority: 1,
   labels: [],
-  blockers: [],
+  blockedBy: [],
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
 };
@@ -84,6 +84,7 @@ describe("runWorker", () => {
     expect(result.issueId).toBe("issue-1");
     expect(result.turns).toBe(1);
     expect(result.success).toBe(true);
+    expect(result.workspacePath).toBeDefined();
     expect(workspace.ensureWorkspace).toHaveBeenCalledWith(testIssue);
     expect(workspace.runHook).toHaveBeenCalledWith("before_run", "/tmp/test-workspace");
     expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
@@ -248,6 +249,7 @@ describe("runWorker", () => {
     // Should still have run after_run hook
     expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
     expect(result.turns).toBe(1);
+    expect(result.success).toBe(false);
   });
 
   it("writes MCP config when mcpServers provided", async () => {
@@ -277,5 +279,97 @@ describe("runWorker", () => {
     expect(workspace.writeMcpConfig).toHaveBeenCalledWith("/tmp/test-workspace", {
       "forge-linear": { command: "node" },
     });
+  });
+
+  it("passes approvalPolicy to agent.startSession", async () => {
+    const startSessionSpy = vi.fn().mockResolvedValue({
+      id: "s-1",
+      abortController: new AbortController(),
+    });
+
+    const agent: AgentAdapter = {
+      name: "mock",
+      startSession: startSessionSpy,
+      async *streamEvents() {
+        yield { type: "done" as const, success: true };
+      },
+      async stopSession() {},
+    };
+
+    const tracker = new MemoryTracker([testIssue]);
+    tracker.updateIssueState("issue-1", "Done");
+    const workspace = createMockWorkspace();
+
+    await runWorker(
+      testIssue,
+      {
+        maxTurns: 1,
+        approvalPolicy: "bypassPermissions",
+        promptTemplate: "Fix {{ issue.identifier }}",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["Todo"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    expect(startSessionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvalPolicy: "bypassPermissions",
+      }),
+    );
+  });
+
+  it("stops turn when read timeout fires", async () => {
+    // Create an agent that yields events very slowly
+    const stopSpy = vi.fn();
+    const agent: AgentAdapter = {
+      name: "mock",
+      async startSession() {
+        return {
+          id: "s-1",
+          abortController: new AbortController(),
+        };
+      },
+      async *streamEvents(handle: SessionHandle) {
+        // Yield one event, then hang indefinitely until aborted
+        yield { type: "text" as const, content: "Starting..." };
+        await new Promise<void>((resolve) => {
+          handle.abortController.signal.addEventListener("abort", () => resolve());
+        });
+        yield { type: "done" as const, success: false };
+      },
+      stopSession: stopSpy,
+    };
+
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
+    const workspace = createMockWorkspace();
+
+    const result = await runWorker(
+      testIssue,
+      {
+        maxTurns: 5,
+        readTimeoutMs: 50, // Very short timeout for test
+        promptTemplate: "Work on it",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["In Progress"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.turns).toBe(1);
+    expect(stopSpy).toHaveBeenCalled();
   });
 });

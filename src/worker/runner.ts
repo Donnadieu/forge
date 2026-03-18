@@ -5,6 +5,9 @@ import { renderPrompt, buildPromptContext } from "./prompt-renderer.js";
 
 export interface WorkerConfig {
   maxTurns: number;
+  turnTimeoutMs?: number;
+  readTimeoutMs?: number;
+  approvalPolicy?: string;
   promptTemplate: string;
   trackerConfig: TrackerConfig;
   mcpServers?: Record<string, unknown>;
@@ -17,6 +20,7 @@ export interface WorkerResult {
   tokens: { input: number; output: number };
   success: boolean;
   error?: string;
+  workspacePath?: string;
 }
 
 export interface WorkerCallbacks {
@@ -49,11 +53,22 @@ export async function runWorker(
   // 3. Run before_run hook
   await workspace.runHook("before_run", workspacePath);
 
+  let lastTurnSuccess = true;
+
   try {
     // 4. Multi-turn loop
     while (turnNumber < config.maxTurns) {
       turnNumber++;
       callbacks?.onTurnStart?.(issue.id, turnNumber);
+
+      // Turn timeout
+      let turnTimedOut = false;
+      let turnTimer: ReturnType<typeof setTimeout> | undefined;
+      if (config.turnTimeoutMs) {
+        turnTimer = setTimeout(() => {
+          turnTimedOut = true;
+        }, config.turnTimeoutMs);
+      }
 
       // Build prompt
       const prompt =
@@ -67,13 +82,30 @@ export async function runWorker(
         workspacePath,
         mcpConfigPath,
         sessionId,
+        approvalPolicy: config.approvalPolicy,
       });
 
       sessionId = handle.id;
 
-      // Stream events
+      // Stream events with optional read timeout
       let turnSuccess = true;
+      let readTimer: ReturnType<typeof setTimeout> | undefined;
+      let readTimedOut = false;
+
+      const resetReadTimer = () => {
+        if (readTimer) clearTimeout(readTimer);
+        if (config.readTimeoutMs) {
+          readTimer = setTimeout(() => {
+            readTimedOut = true;
+            handle.abortController.abort();
+          }, config.readTimeoutMs);
+        }
+      };
+
+      resetReadTimer();
+
       for await (const event of agent.streamEvents(handle)) {
+        resetReadTimer();
         callbacks?.onEvent?.(issue.id, event);
 
         if (event.type === "usage") {
@@ -92,9 +124,19 @@ export async function runWorker(
         }
       }
 
+      if (readTimer) clearTimeout(readTimer);
+
+      if (turnTimer) clearTimeout(turnTimer);
+      if (turnTimedOut || readTimedOut) {
+        await agent.stopSession(handle);
+        lastTurnSuccess = false;
+        break;
+      }
+
       callbacks?.onTurnEnd?.(issue.id, turnNumber);
 
       if (!turnSuccess) {
+        lastTurnSuccess = false;
         break;
       }
 
@@ -116,6 +158,7 @@ export async function runWorker(
     issueId: issue.id,
     turns: turnNumber,
     tokens: totalTokens,
-    success: true,
+    success: lastTurnSuccess,
+    workspacePath: workspacePath,
   };
 }

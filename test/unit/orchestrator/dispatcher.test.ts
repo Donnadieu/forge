@@ -16,7 +16,7 @@ function makeIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
     state: "Todo",
     priority: 2,
     labels: [],
-    blockers: [],
+    blockedBy: [],
     createdAt: "2024-01-01T00:00:00Z",
     updatedAt: "2024-01-01T00:00:00Z",
     ...overrides,
@@ -41,6 +41,25 @@ describe("sortIssuesForDispatch", () => {
     ];
     const sorted = sortIssuesForDispatch(issues);
     expect(sorted.map((i) => i.id)).toEqual(["old", "new"]);
+  });
+
+  it("sorts null priority after numeric priorities", () => {
+    const issues = [
+      makeIssue({ id: "a", priority: null, createdAt: "2024-01-01T00:00:00Z" }),
+      makeIssue({ id: "b", priority: 1, createdAt: "2024-01-01T00:00:00Z" }),
+      makeIssue({ id: "c", identifier: "MT-0", priority: 0, createdAt: "2024-01-01T00:00:00Z" }),
+    ];
+    const sorted = sortIssuesForDispatch(issues);
+    expect(sorted.map((i) => i.id)).toEqual(["c", "b", "a"]);
+  });
+
+  it("uses identifier as tiebreaker when priority and createdAt are equal", () => {
+    const issues = [
+      makeIssue({ id: "a", identifier: "MT-2", priority: 1, createdAt: "2024-01-01T00:00:00Z" }),
+      makeIssue({ id: "b", identifier: "MT-1", priority: 1, createdAt: "2024-01-01T00:00:00Z" }),
+    ];
+    const sorted = sortIssuesForDispatch(issues);
+    expect(sorted.map((i) => i.id)).toEqual(["b", "a"]);
   });
 });
 
@@ -89,7 +108,7 @@ describe("shouldDispatchIssue", () => {
   it("rejects issue with active blockers", () => {
     const state = createInitialState();
     const issue = makeIssue({
-      blockers: [makeIssue({ id: "blocker", state: "In Progress" })],
+      blockedBy: [{ id: "blocker", state: "In Progress" }],
     });
     expect(shouldDispatchIssue(issue, state, config)).toBe(false);
   });
@@ -97,9 +116,18 @@ describe("shouldDispatchIssue", () => {
   it("allows issue with completed blockers", () => {
     const state = createInitialState();
     const issue = makeIssue({
-      blockers: [makeIssue({ id: "blocker", state: "Done" })],
+      blockedBy: [{ id: "blocker", state: "Done" }],
     });
     expect(shouldDispatchIssue(issue, state, config)).toBe(true);
+  });
+
+  it("rejects issue with non-terminal blockers even in non-active state", () => {
+    const state = createInitialState();
+    const issue = makeIssue({
+      blockedBy: [{ id: "blocker", state: "Review" }],
+    });
+    // "Review" is not in terminal_states, so it should block
+    expect(shouldDispatchIssue(issue, state, config)).toBe(false);
   });
 
   it("rejects when at concurrency limit", () => {

@@ -25,7 +25,13 @@ export async function reconcileRunningIssues(
 
   // Batch fetch current states for all running issues
   const runningIds = Array.from(state.running.keys());
-  const currentStates = await tracker.fetchIssueStatesByIds(runningIds);
+  let currentStates: Map<string, string>;
+  try {
+    currentStates = await tracker.fetchIssueStatesByIds(runningIds);
+  } catch {
+    // State refresh failed; keep workers running, try again next tick
+    return result;
+  }
 
   const now = performance.now();
 

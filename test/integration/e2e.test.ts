@@ -191,7 +191,7 @@ describe("Forge E2E", () => {
       id: "blocked-1",
       identifier: "MT-11",
       state: "Todo",
-      blockers: [blocker],
+      blockedBy: [{ id: "blocker-1", identifier: "MT-10", state: "In Progress" }],
     });
 
     const dispatched: string[] = [];

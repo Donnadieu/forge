@@ -412,4 +412,38 @@ describe("ClaudeCodeAdapter", () => {
 
     expect(collected).toEqual([{ type: "error", message: "No child process found for session" }]);
   });
+
+  it("uses custom command when provided", async () => {
+    const customAdapter = new ClaudeCodeAdapter({ command: "my-custom-agent" });
+    const mockProc = createMockProcess([]);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    await customAdapter.startSession({
+      prompt: "Do it",
+      workspacePath: "/tmp/ws",
+    });
+
+    expect(child_process.spawn).toHaveBeenCalledWith(
+      "my-custom-agent",
+      expect.any(Array),
+      expect.anything(),
+    );
+  });
+
+  it("defaults to 'claude' command when no option provided", async () => {
+    const defaultAdapter = new ClaudeCodeAdapter();
+    const mockProc = createMockProcess([]);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    await defaultAdapter.startSession({
+      prompt: "Do it",
+      workspacePath: "/tmp/ws",
+    });
+
+    expect(child_process.spawn).toHaveBeenCalledWith(
+      "claude",
+      expect.any(Array),
+      expect.anything(),
+    );
+  });
 });

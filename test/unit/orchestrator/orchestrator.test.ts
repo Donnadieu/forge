@@ -16,7 +16,7 @@ function makeIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
     state: "Todo",
     priority: 2,
     labels: [],
-    blockers: [],
+    blockedBy: [],
     createdAt: "2024-01-01T00:00:00Z",
     updatedAt: "2024-01-01T00:00:00Z",
     ...overrides,

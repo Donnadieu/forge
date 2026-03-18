@@ -17,7 +17,7 @@ const ALLOWED_DEPS: Record<string, string[]> = {
   config: [],
   observability: [],
   agent: [], // agent/types is leaf; impls import only agent/types (intra-module)
-  tracker: [], // tracker/types is leaf; impls import only tracker/types (intra-module)
+  tracker: ["observability"], // impls may log errors via Pino
   workspace: ["tracker"],
   worker: ["agent", "tracker", "workspace"],
   orchestrator: ["agent", "tracker", "workspace", "worker"],

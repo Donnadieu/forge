@@ -11,9 +11,13 @@ export interface OrchestratorConfig {
   pollIntervalMs: number;
   maxConcurrentAgents: number;
   maxTurns: number;
+  turnTimeoutMs?: number;
+  readTimeoutMs?: number;
+  approvalPolicy?: string;
   stallTimeoutSeconds: number;
   maxRetryAttempts: number;
   maxRetryDelayMs: number;
+  retryBaseDelayMs?: number;
   trackerConfig: TrackerConfig;
   promptTemplate: string;
   mcpServers?: Record<string, unknown>;
@@ -165,6 +169,9 @@ export class Orchestrator {
     const abortController = new AbortController();
     const workerConfig: WorkerConfig = {
       maxTurns: this.config.maxTurns,
+      turnTimeoutMs: this.config.turnTimeoutMs,
+      readTimeoutMs: this.config.readTimeoutMs,
+      approvalPolicy: this.config.approvalPolicy,
       promptTemplate: this.config.promptTemplate,
       trackerConfig: this.config.trackerConfig,
       mcpServers: this.config.mcpServers,
@@ -210,10 +217,45 @@ export class Orchestrator {
     this.state.claimed.delete(issue.id);
   }
 
-  private handleWorkerComplete(issueId: string, result: WorkerResult, _attempt: number): void {
+  private async handleWorkerComplete(
+    issueId: string,
+    result: WorkerResult,
+    attempt: number,
+  ): Promise<void> {
+    const entry = this.state.running.get(issueId);
     this.state.running.delete(issueId);
-    this.state.completed.add(issueId);
     this.callbacks.onComplete?.(issueId, result);
+
+    if (result.success) {
+      // Check if ticket is still active — if so, schedule continuation
+      try {
+        const states = await this.tracker.fetchIssueStatesByIds([issueId]);
+        const currentState = states.get(issueId);
+        if (currentState && this.config.trackerConfig.active_states.includes(currentState)) {
+          const identifier = entry?.identifier ?? "";
+          const issue = entry?.issue;
+          if (issue) {
+            scheduleRetry(
+              this.state,
+              issueId,
+              identifier,
+              attempt + 1,
+              "continuation",
+              null,
+              this.config.maxRetryDelayMs,
+              (retryId) => {
+                this.dispatchIssue(issue, attempt + 1);
+              },
+              this.config.retryBaseDelayMs,
+            );
+            return;
+          }
+        }
+      } catch {
+        // State check failed, mark as completed
+      }
+    }
+    this.state.completed.add(issueId);
   }
 
   private handleWorkerError(
@@ -260,6 +302,7 @@ export class Orchestrator {
               // Retry failed, give up
             });
         },
+        this.config.retryBaseDelayMs,
       );
     }
   }
@@ -268,6 +311,9 @@ export class Orchestrator {
     const entry = this.state.running.get(issueId);
     if (entry) {
       entry.abortController.abort();
+      if (entry.workspacePath) {
+        this.workspace.removeWorkspace(entry.workspacePath).catch(() => {});
+      }
       this.state.running.delete(issueId);
     }
     cancelRetry(this.state, issueId);
@@ -304,6 +350,7 @@ export class Orchestrator {
             })
             .catch(() => {});
         },
+        this.config.retryBaseDelayMs,
       );
     }
   }

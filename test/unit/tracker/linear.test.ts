@@ -82,7 +82,9 @@ describe("LinearTracker", () => {
         priority: 2,
         assignee: "user-1",
         labels: ["bug", "urgent"],
-        blockers: [],
+        branchName: undefined,
+        url: undefined,
+        blockedBy: [],
         createdAt: "2025-01-01T00:00:00Z",
         updatedAt: "2025-01-02T00:00:00Z",
       });
@@ -166,11 +168,10 @@ describe("LinearTracker", () => {
       expect(result[0].assignee).toBe("user-1");
     });
 
-    it("throws when API key is missing", async () => {
+    it("returns empty array when API key is missing", async () => {
       const tracker = new LinearTracker();
-      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow(
-        "Linear API key is required",
-      );
+      const result = await tracker.fetchCandidates(makeConfig());
+      expect(result).toEqual([]);
     });
 
     it("throws when project slug is missing", async () => {
@@ -221,7 +222,7 @@ describe("LinearTracker", () => {
   });
 
   describe("normalizeIssue (via fetchCandidates)", () => {
-    it("filters inverseRelations client-side to extract blockers", async () => {
+    it("filters inverseRelations client-side to extract blockedBy", async () => {
       const raw = makeRawIssue({
         inverseRelations: {
           nodes: [
@@ -265,13 +266,13 @@ describe("LinearTracker", () => {
       const tracker = new LinearTracker(undefined, "key");
       const result = await tracker.fetchCandidates(makeConfig());
 
-      // Only "blocks" type relations should become blockers, not "relates"
-      expect(result[0].blockers).toHaveLength(2);
-      expect(result[0].blockers[0].id).toBe("blocker-1");
-      expect(result[0].blockers[0].identifier).toBe("PRJ-10");
-      expect(result[0].blockers[0].state).toBe("In Progress");
-      expect(result[0].blockers[1].id).toBe("blocker-2");
-      expect(result[0].blockers[1].state).toBe("");
+      // Only "blocks" type relations should become blockedBy, not "relates"
+      expect(result[0].blockedBy).toHaveLength(2);
+      expect(result[0].blockedBy[0].id).toBe("blocker-1");
+      expect(result[0].blockedBy[0].identifier).toBe("PRJ-10");
+      expect(result[0].blockedBy[0].state).toBe("In Progress");
+      expect(result[0].blockedBy[1].id).toBe("blocker-2");
+      expect(result[0].blockedBy[1].state).toBe("");
     });
 
     it("handles null description, assignee, labels, and inverseRelations", async () => {
@@ -298,8 +299,28 @@ describe("LinearTracker", () => {
       expect(result[0].description).toBe("");
       expect(result[0].assignee).toBeUndefined();
       expect(result[0].labels).toEqual([]);
-      expect(result[0].blockers).toEqual([]);
-      expect(result[0].priority).toBe(4); // null priority defaults to 4 (none)
+      expect(result[0].blockedBy).toEqual([]);
+      expect(result[0].priority).toBeNull();
+    });
+
+    it("lowercases label names", async () => {
+      const raw = makeRawIssue({
+        labels: { nodes: [{ name: "BUG" }, { name: "Urgent" }] },
+      });
+
+      globalThis.fetch = mockFetchResponse({
+        data: {
+          issues: {
+            nodes: [raw],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      });
+
+      const tracker = new LinearTracker(undefined, "key");
+      const result = await tracker.fetchCandidates(makeConfig());
+
+      expect(result[0].labels).toEqual(["bug", "urgent"]);
     });
   });
 
@@ -379,31 +400,48 @@ describe("LinearTracker", () => {
   });
 
   describe("error handling", () => {
-    it("throws on HTTP error response", async () => {
+    it("returns empty array on HTTP error response", async () => {
       globalThis.fetch = mockFetchResponse({}, false, 500);
 
       const tracker = new LinearTracker(undefined, "key");
-      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow("Linear API error: 500");
+      const result = await tracker.fetchCandidates(makeConfig());
+      expect(result).toEqual([]);
     });
 
-    it("throws on GraphQL errors in response", async () => {
+    it("returns empty array on GraphQL errors in response", async () => {
       globalThis.fetch = mockFetchResponse({
         errors: [{ message: "Field not found" }],
       });
 
       const tracker = new LinearTracker(undefined, "key");
-      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow(
-        "Linear GraphQL error: Field not found",
-      );
+      const result = await tracker.fetchCandidates(makeConfig());
+      expect(result).toEqual([]);
     });
 
-    it("throws when response has no data", async () => {
+    it("returns empty array when response has no data", async () => {
       globalThis.fetch = mockFetchResponse({});
 
       const tracker = new LinearTracker(undefined, "key");
-      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow(
-        "Linear API returned no data",
-      );
+      const result = await tracker.fetchCandidates(makeConfig());
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty map on fetchIssueStatesByIds HTTP error", async () => {
+      globalThis.fetch = mockFetchResponse({}, false, 500);
+
+      const tracker = new LinearTracker(undefined, "key");
+      const result = await tracker.fetchIssueStatesByIds(["id-a"]);
+      expect(result).toEqual(new Map());
+    });
+
+    it("returns empty map on fetchIssueStatesByIds GraphQL error", async () => {
+      globalThis.fetch = mockFetchResponse({
+        errors: [{ message: "Field not found" }],
+      });
+
+      const tracker = new LinearTracker(undefined, "key");
+      const result = await tracker.fetchIssueStatesByIds(["id-a"]);
+      expect(result).toEqual(new Map());
     });
   });
 });

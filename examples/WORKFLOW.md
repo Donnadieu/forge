@@ -20,14 +20,18 @@ agent:
   kind: claude
   max_concurrent_agents: 5
   max_turns: 20
-  poll_interval_seconds: 30
   stall_timeout_seconds: 300
   approval_policy: bypassPermissions
+  turn_timeout_ms: 3600000
+  read_timeout_ms: 5000
+  max_retry_backoff_ms: 300000
+
+polling:
+  interval_ms: 30000
 
 retry:
   max_attempts: 5
   base_delay_seconds: 10
-  max_delay_seconds: 300
 ---
 
 You are an expert software engineer working on ticket **{{ issue.identifier }}**: {{ issue.title }}
@@ -44,11 +48,11 @@ You are an expert software engineer working on ticket **{{ issue.identifier }}**
 
 {{ issue.labels | join: ", " }}
 
-{% if issue.blockers.size > 0 %}
+{% if issue.blockedBy.size > 0 %}
 ## Blockers
 
 These issues block this ticket:
-{% for blocker in issue.blockers %}
+{% for blocker in issue.blockedBy %}
 - {{ blocker.identifier }} ({{ blocker.state }})
 {% endfor %}
 {% endif %}

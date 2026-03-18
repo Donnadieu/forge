@@ -37,9 +37,12 @@ export function writeWorkflowFile(
       kind: "mock",
       max_concurrent_agents: 5,
       max_turns: 3,
-      poll_interval_seconds: 1,
       stall_timeout_seconds: 60,
       ...((overrides.agent as Record<string, unknown>) || {}),
+    },
+    polling: {
+      interval_ms: 1000,
+      ...((overrides.polling as Record<string, unknown>) || {}),
     },
     retry: {
       max_attempts: 3,

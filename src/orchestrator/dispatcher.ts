@@ -6,8 +6,12 @@ import type { OrchestratorState } from "./types.js";
  */
 export function sortIssuesForDispatch(issues: NormalizedIssue[]): NormalizedIssue[] {
   return [...issues].sort((a, b) => {
-    if (a.priority !== b.priority) return a.priority - b.priority;
-    return a.createdAt.localeCompare(b.createdAt);
+    const aPri = a.priority ?? Infinity;
+    const bPri = b.priority ?? Infinity;
+    if (aPri !== bPri) return aPri - bPri;
+    const dateComp = a.createdAt.localeCompare(b.createdAt);
+    if (dateComp !== 0) return dateComp;
+    return a.identifier.localeCompare(b.identifier);
   });
 }
 
@@ -39,8 +43,8 @@ export function shouldDispatchIssue(
   // Not in active state
   if (!config.active_states.includes(issue.state)) return false;
 
-  // Check if blocked by active issues
-  if (hasActiveBlockers(issue, config.active_states)) return false;
+  // Check if blocked by non-terminal issues
+  if (hasNonTerminalBlockers(issue, config.terminal_states)) return false;
 
   // Check concurrency limit
   if (state.running.size >= config.max_concurrent_agents) return false;
@@ -59,10 +63,12 @@ export function shouldDispatchIssue(
 }
 
 /**
- * Check if any blocker is still in an active (non-terminal) state.
+ * Check if any blocker is still in a non-terminal state.
  */
-function hasActiveBlockers(issue: NormalizedIssue, activeStates: string[]): boolean {
-  return issue.blockers.some((b) => activeStates.includes(b.state));
+function hasNonTerminalBlockers(issue: NormalizedIssue, terminalStates: string[]): boolean {
+  return issue.blockedBy.some(
+    (b) => b.state != null && b.state !== "" && !terminalStates.includes(b.state),
+  );
 }
 
 /**
