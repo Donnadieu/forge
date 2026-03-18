@@ -58,13 +58,13 @@ describe("resolveConfig", () => {
       },
       workspace: {
         hooks: {
-          after_create: 'git clone $REPO_URL .',
+          after_create: "git clone $REPO_URL .",
           before_run: 'git checkout -b "$ISSUE_BRANCH" origin/main',
         },
       },
     });
     // Hooks should be passed through verbatim — the shell expands them at runtime
-    expect(config.workspace.hooks.after_create).toBe('git clone $REPO_URL .');
+    expect(config.workspace.hooks.after_create).toBe("git clone $REPO_URL .");
     expect(config.workspace.hooks.before_run).toBe('git checkout -b "$ISSUE_BRANCH" origin/main');
   });
 
@@ -77,13 +77,13 @@ describe("resolveConfig", () => {
       },
       workspace: {
         hooks: {
-          before_run: 'echo $TEST_PROJECT',
+          before_run: "echo $TEST_PROJECT",
         },
       },
     });
     expect(config.tracker.project_slug).toBe("forge-dev");
     // But hook should NOT be expanded
-    expect(config.workspace.hooks.before_run).toBe('echo $TEST_PROJECT');
+    expect(config.workspace.hooks.before_run).toBe("echo $TEST_PROJECT");
   });
 
   it("resolves ~ in workspace root", () => {

@@ -86,8 +86,16 @@ describe("runWorker", () => {
     expect(result.success).toBe(true);
     expect(result.workspacePath).toBeDefined();
     expect(workspace.ensureWorkspace).toHaveBeenCalledWith(testIssue);
-    expect(workspace.runHook).toHaveBeenCalledWith("before_run", "/tmp/test-workspace", expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }));
-    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace", expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }));
+    expect(workspace.runHook).toHaveBeenCalledWith(
+      "before_run",
+      "/tmp/test-workspace",
+      expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }),
+    );
+    expect(workspace.runHook).toHaveBeenCalledWith(
+      "after_run",
+      "/tmp/test-workspace",
+      expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }),
+    );
   });
 
   it("runs multiple turns while issue stays active", async () => {
@@ -247,7 +255,11 @@ describe("runWorker", () => {
     );
 
     // Should still have run after_run hook
-    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace", expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }));
+    expect(workspace.runHook).toHaveBeenCalledWith(
+      "after_run",
+      "/tmp/test-workspace",
+      expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }),
+    );
     expect(result.turns).toBe(1);
     expect(result.success).toBe(false);
   });
@@ -323,6 +335,94 @@ describe("runWorker", () => {
         approvalPolicy: "bypassPermissions",
       }),
     );
+  });
+
+  it("continues when fetchIssueStatesByIds returns empty map (transient API failure)", async () => {
+    let turnCount = 0;
+    const agent: AgentAdapter = {
+      name: "mock",
+      async startSession() {
+        return { id: `s-${turnCount}`, abortController: new AbortController() };
+      },
+      async *streamEvents() {
+        turnCount++;
+        yield { type: "done" as const, success: true };
+      },
+      async stopSession() {},
+    };
+
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
+
+    let fetchCount = 0;
+    tracker.fetchIssueStatesByIds = async (_ids: string[]) => {
+      fetchCount++;
+      if (fetchCount === 1) return new Map();
+      return new Map([["issue-1", "Done"]]);
+    };
+
+    const workspace = createMockWorkspace();
+    const result = await runWorker(
+      testIssue,
+      {
+        maxTurns: 10,
+        promptTemplate: "Work",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["In Progress"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    expect(result.turns).toBe(2);
+  });
+
+  it("continues when fetchIssueStatesByIds throws (network error)", async () => {
+    let turnCount = 0;
+    const agent: AgentAdapter = {
+      name: "mock",
+      async startSession() {
+        return { id: `s-${turnCount}`, abortController: new AbortController() };
+      },
+      async *streamEvents() {
+        turnCount++;
+        yield { type: "done" as const, success: true };
+      },
+      async stopSession() {},
+    };
+
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
+
+    let fetchCount = 0;
+    tracker.fetchIssueStatesByIds = async (_ids: string[]) => {
+      fetchCount++;
+      if (fetchCount === 1) throw new Error("Network timeout");
+      return new Map([["issue-1", "Done"]]);
+    };
+
+    const workspace = createMockWorkspace();
+    const result = await runWorker(
+      testIssue,
+      {
+        maxTurns: 10,
+        promptTemplate: "Work",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["In Progress"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    expect(result.turns).toBe(2);
   });
 
   it("stops turn when read timeout fires", async () => {

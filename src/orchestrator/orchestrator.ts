@@ -156,12 +156,26 @@ export class Orchestrator {
     });
 
     for (const issue of toDispatch) {
-      this.dispatchIssue(issue);
+      await this.dispatchIssue(issue);
     }
   }
 
-  private dispatchIssue(issue: NormalizedIssue, attempt = 1): void {
+  private async dispatchIssue(issue: NormalizedIssue, attempt = 1): Promise<void> {
     if (this.stopped) return;
+
+    // Re-validate state to catch races between fetchCandidates and dispatch
+    try {
+      const states = await this.tracker.fetchIssueStatesByIds([issue.id]);
+      const currentState = states.get(issue.id);
+      if (
+        currentState !== undefined &&
+        !this.config.trackerConfig.active_states.includes(currentState)
+      ) {
+        return;
+      }
+    } catch {
+      // Re-validation failed; proceed with dispatch (fail-open)
+    }
 
     this.state.claimed.add(issue.id);
     this.callbacks.onDispatch?.(issue);
@@ -251,8 +265,9 @@ export class Orchestrator {
             return;
           }
         }
-      } catch {
-        // State check failed, mark as completed
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.callbacks.onError?.(issueId, err);
       }
     }
     this.state.completed.add(issueId);

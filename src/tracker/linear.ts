@@ -249,6 +249,58 @@ export class LinearTracker implements TrackerAdapter {
     }
   }
 
+  async updateIssueState(issueId: string, stateName: string): Promise<void> {
+    const teamData = await this.graphql<{
+      issue: {
+        team: {
+          states: { nodes: Array<{ id: string; name: string }> };
+        };
+      };
+    }>(
+      `query IssueTeamStates($id: String!) {
+        issue(id: $id) {
+          team {
+            states { nodes { id name } }
+          }
+        }
+      }`,
+      { id: issueId },
+    );
+
+    const states = teamData.issue.team.states.nodes;
+    const target = states.find((s) => s.name === stateName);
+    if (!target) {
+      throw new Error(
+        `State "${stateName}" not found in team workflow. Available: ${states.map((s) => s.name).join(", ")}`,
+      );
+    }
+
+    await this.graphql<{ issueUpdate: { success: boolean } }>(
+      `mutation MoveIssueToState($id: String!, $stateId: String!) {
+        issueUpdate(id: $id, input: { stateId: $stateId }) {
+          success
+        }
+      }`,
+      { id: issueId, stateId: target.id },
+    );
+  }
+
+  async createComment(issueId: string, body: string): Promise<string> {
+    const data = await this.graphql<{
+      commentCreate: { success: boolean; comment: { id: string } };
+    }>(
+      `mutation CreateComment($issueId: String!, $body: String!) {
+        commentCreate(input: { issueId: $issueId, body: $body }) {
+          success
+          comment { id }
+        }
+      }`,
+      { issueId, body },
+    );
+
+    return data.commentCreate.comment.id;
+  }
+
   // PITFALL #2: Filter inverseRelations client-side by type, NOT via API arg
   private normalizeIssue(raw: RawLinearIssue): NormalizedIssue {
     const blockedBy = (raw.inverseRelations?.nodes || [])

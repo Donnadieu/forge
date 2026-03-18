@@ -67,25 +67,76 @@ You have access to these operational skills in the `skills/` directory:
 - **linear** — Interact with Linear (state transitions, comments, attachments)
 - **debug** — Correlate logs by issue_id / session_id
 
-## Instructions
+## Lifecycle
+
+### 1. Claim the Issue
+
+Move the issue to "In Progress" immediately using the **linear** skill:
+- Fetch the team workflow states for your issue
+- Find the "In Progress" state ID
+- Call `issueUpdate` to transition
+
+### 2. Create a Workpad Comment
+
+Create a comment on the issue to track your progress:
+- Post an initial comment: "Forge agent started. Working on: {brief plan}"
+- Save the returned comment ID — you will update this comment as you work
+
+### 3. Implement
 
 1. Read and understand the codebase relevant to this ticket.
 2. Plan your implementation approach.
 3. Implement the changes with clean, well-tested code.
 4. Run the test suite and fix any failures.
-5. Use the **commit** skill to stage and commit your changes.
-6. Use the **push** skill to push your branch and create a PR.
-7. Use the **linear** skill to move the ticket to "Human Review" and post a summary comment.
-8. If you receive review feedback, address it incrementally using the **land** skill.
+5. Update your workpad comment after each major milestone.
+
+### 4. Ship
+
+1. Use the **commit** skill to stage and commit your changes.
+2. Use the **push** skill to push your branch and create a PR.
+3. Post a summary comment on the issue with: what changed, test results, PR link.
+4. Use the **linear** skill to move the ticket to "Human Review".
+
+### 5. Respond to Feedback
+
+If you receive review feedback, address it incrementally using the **land** skill. Update your workpad comment with progress.
+
+### State Routing Table
+
+| Situation | Target State | Action |
+|-----------|-------------|--------|
+| Starting work | In Progress | Move immediately on startup |
+| Implementation complete, tests pass | Human Review | Push PR, post summary comment |
+| Blocked by dependency or unclear requirements | Blocked | Post explanation comment |
+| CI failures after push | In Progress | Fix and re-push, do NOT move to review |
+| Review feedback received | In Progress | Address feedback, re-push |
+
+### Proof-of-Work Requirements
+
+Before moving to "Human Review":
+- All tests pass (`npm test` or equivalent)
+- Linter/formatter clean
+- Branch pushed to remote
+- PR created with clear description
+- Summary comment posted on the Linear issue
 
 ## Rules
 
 - Write tests for all new functionality.
 - Follow existing code conventions and patterns.
 - Keep commits atomic and well-described.
-- If you encounter a blocker, use the **linear** skill to move the ticket to "Blocked" and explain in a comment.
 - Never push with failing tests or linter errors.
 - If CI fails after push, fix the issue and re-push. Do not move to review with failing CI.
+
+### Error Handling
+
+If you encounter an unrecoverable error:
+1. Move the issue to "Blocked" using the **linear** skill
+2. Post a detailed comment explaining:
+   - What you were trying to do
+   - The error message or failure
+   - What you think the fix might be
+3. Stop working — the orchestrator will not retry a blocked issue
 
 {% if attempt %}
 ## Retry Context

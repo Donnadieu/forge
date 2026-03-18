@@ -124,6 +124,55 @@ describe("Orchestrator", () => {
     expect(selected2).toHaveLength(1);
   });
 
+  it("skips dispatch when issue state changed between fetch and dispatch", async () => {
+    vi.useFakeTimers();
+    const issue = makeIssue({ state: "Todo" });
+    const tracker = new MemoryTracker([issue]);
+
+    const origFetchCandidates = tracker.fetchCandidates.bind(tracker);
+    tracker.fetchCandidates = async (config) => {
+      const candidates = await origFetchCandidates(config);
+      // Simulate race: issue moves to Done after candidates fetched
+      await tracker.updateIssueState("id-1", "Done");
+      return candidates;
+    };
+
+    const agent = createMockAgent();
+    const workspace = createMockWorkspace();
+    const dispatched: string[] = [];
+
+    const orchestrator = new Orchestrator(
+      tracker,
+      agent,
+      workspace,
+      {
+        pollIntervalMs: 100_000,
+        maxConcurrentAgents: 5,
+        maxTurns: 1,
+        stallTimeoutSeconds: 300,
+        maxRetryAttempts: 3,
+        maxRetryDelayMs: 300_000,
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["Todo"],
+          terminal_states: ["Done"],
+        },
+        promptTemplate: "Fix it",
+      },
+      {
+        onDispatch: (issue) => dispatched.push(issue.id),
+      },
+    );
+
+    orchestrator.start();
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(dispatched).toHaveLength(0);
+
+    await orchestrator.stop();
+  });
+
   it("stops cleanly", async () => {
     const tracker = new MemoryTracker();
     const agent = createMockAgent();

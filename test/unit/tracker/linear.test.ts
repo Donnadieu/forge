@@ -399,6 +399,102 @@ describe("LinearTracker", () => {
     });
   });
 
+  describe("updateIssueState", () => {
+    it("fetches team states and updates issue with correct stateId", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async () => ({
+            data: {
+              issue: {
+                team: {
+                  states: {
+                    nodes: [
+                      { id: "state-1", name: "Todo" },
+                      { id: "state-2", name: "In Progress" },
+                      { id: "state-3", name: "Done" },
+                    ],
+                  },
+                },
+              },
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async () => ({
+            data: { issueUpdate: { success: true } },
+          }),
+        });
+      globalThis.fetch = fetchMock;
+
+      const tracker = new LinearTracker(undefined, "lin_api_test");
+      await tracker.updateIssueState("issue-1", "In Progress");
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const mutationBody = JSON.parse(
+        (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+      );
+      expect(mutationBody.variables.stateId).toBe("state-2");
+    });
+
+    it("throws when state name is not found in team workflow", async () => {
+      globalThis.fetch = mockFetchResponse({
+        data: {
+          issue: {
+            team: {
+              states: { nodes: [{ id: "state-1", name: "Todo" }] },
+            },
+          },
+        },
+      });
+
+      const tracker = new LinearTracker(undefined, "lin_api_test");
+      await expect(tracker.updateIssueState("issue-1", "Nonexistent")).rejects.toThrow(
+        'State "Nonexistent" not found',
+      );
+    });
+  });
+
+  describe("createComment", () => {
+    it("creates a comment and returns comment ID", async () => {
+      globalThis.fetch = mockFetchResponse({
+        data: {
+          commentCreate: {
+            success: true,
+            comment: { id: "comment-abc" },
+          },
+        },
+      });
+
+      const tracker = new LinearTracker(undefined, "lin_api_test");
+      const commentId = await tracker.createComment("issue-1", "Hello");
+
+      expect(commentId).toBe("comment-abc");
+    });
+
+    it("sends correct mutation variables", async () => {
+      const fetchMock = mockFetchResponse({
+        data: {
+          commentCreate: { success: true, comment: { id: "c-1" } },
+        },
+      });
+      globalThis.fetch = fetchMock;
+
+      const tracker = new LinearTracker(undefined, "lin_api_test");
+      await tracker.createComment("issue-xyz", "My comment body");
+
+      const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+      expect(body.variables.issueId).toBe("issue-xyz");
+      expect(body.variables.body).toBe("My comment body");
+    });
+  });
+
   describe("error handling", () => {
     it("returns empty array on HTTP error response", async () => {
       globalThis.fetch = mockFetchResponse({}, false, 500);
