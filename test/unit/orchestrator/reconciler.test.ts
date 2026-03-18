@@ -1,0 +1,119 @@
+import { describe, it, expect } from "vitest";
+import { reconcileRunningIssues } from "../../../src/orchestrator/reconciler.js";
+import { createInitialState } from "../../../src/orchestrator/types.js";
+import { MemoryTracker } from "../../../src/tracker/memory.js";
+import type { NormalizedIssue } from "../../../src/tracker/types.js";
+
+function makeIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
+  return {
+    id: "id-1",
+    identifier: "MT-1",
+    title: "Test",
+    description: "",
+    state: "In Progress",
+    priority: 2,
+    labels: [],
+    blockers: [],
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeRunningEntry(overrides: any = {}) {
+  return {
+    issueId: "id-1",
+    identifier: "MT-1",
+    issue: makeIssue(),
+    startedAt: performance.now() - 60_000,
+    lastActivityAt: performance.now(),
+    tokens: { input: 0, output: 0 },
+    workspacePath: "/tmp/ws",
+    attempt: 1,
+    abortController: new AbortController(),
+    workerPromise: Promise.resolve(),
+    ...overrides,
+  };
+}
+
+describe("reconcileRunningIssues", () => {
+  it("returns empty result when nothing is running", async () => {
+    const state = createInitialState();
+    const tracker = new MemoryTracker();
+    const result = await reconcileRunningIssues(state, tracker, {
+      active_states: ["In Progress"],
+      terminal_states: ["Done"],
+      stall_timeout_seconds: 300,
+    });
+    expect(result.toKill).toEqual([]);
+    expect(result.toRetry).toEqual([]);
+  });
+
+  it("marks issue for kill when it moves to terminal state", async () => {
+    const state = createInitialState();
+    state.running.set("id-1", makeRunningEntry());
+
+    const tracker = new MemoryTracker([makeIssue({ state: "Done" })]);
+
+    const result = await reconcileRunningIssues(state, tracker, {
+      active_states: ["In Progress"],
+      terminal_states: ["Done"],
+      stall_timeout_seconds: 300,
+    });
+    expect(result.toKill).toContain("id-1");
+  });
+
+  it("marks issue for kill when it disappears from tracker", async () => {
+    const state = createInitialState();
+    state.running.set("id-1", makeRunningEntry());
+
+    const tracker = new MemoryTracker(); // no issues
+
+    const result = await reconcileRunningIssues(state, tracker, {
+      active_states: ["In Progress"],
+      terminal_states: ["Done"],
+      stall_timeout_seconds: 300,
+    });
+    expect(result.toKill).toContain("id-1");
+    expect(result.staleIds).toContain("id-1");
+  });
+
+  it("marks stalled issue for retry", async () => {
+    const state = createInitialState();
+    state.running.set(
+      "id-1",
+      makeRunningEntry({
+        lastActivityAt: performance.now() - 600_000, // 10 minutes ago
+      }),
+    );
+
+    const tracker = new MemoryTracker([makeIssue({ state: "In Progress" })]);
+
+    const result = await reconcileRunningIssues(state, tracker, {
+      active_states: ["In Progress"],
+      terminal_states: ["Done"],
+      stall_timeout_seconds: 300, // 5 minutes
+    });
+    expect(result.toRetry).toContain("id-1");
+  });
+
+  it("does not mark active issue as stalled when within timeout", async () => {
+    const state = createInitialState();
+    state.running.set(
+      "id-1",
+      makeRunningEntry({
+        lastActivityAt: performance.now() - 10_000, // 10 seconds ago
+      }),
+    );
+
+    const tracker = new MemoryTracker([makeIssue({ state: "In Progress" })]);
+
+    const result = await reconcileRunningIssues(state, tracker, {
+      active_states: ["In Progress"],
+      terminal_states: ["Done"],
+      stall_timeout_seconds: 300,
+    });
+    expect(result.toRetry).toEqual([]);
+    expect(result.toKill).toEqual([]);
+  });
+});
