@@ -1,13 +1,15 @@
 import { execSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   realpathSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
+import { writeMcpConfig as writeMcpConfigFile } from "./mcp-config.js";
 import type { NormalizedIssue } from "../tracker/types.js";
 
 export interface WorkspaceConfig {
@@ -19,6 +21,7 @@ export interface WorkspaceConfig {
     before_remove?: string;
   };
   hookTimeoutMs?: number;
+  skillsDir?: string;
 }
 
 export class WorkspaceManager {
@@ -65,6 +68,11 @@ export class WorkspaceManager {
     // Run after_create hook only on first creation
     if (isNew && this.config.hooks.after_create) {
       await this.runHook("after_create", workspacePath);
+    }
+
+    // Copy skills into workspace if configured
+    if (this.config.skillsDir) {
+      this.copySkills(workspacePath, this.config.skillsDir);
     }
 
     this.createdPaths.add(workspacePath);
@@ -115,20 +123,28 @@ export class WorkspaceManager {
   }
 
   /**
+   * Copy skill files from the configured skills directory into the workspace.
+   */
+  private copySkills(workspacePath: string, skillsDir: string): void {
+    if (!existsSync(skillsDir)) return;
+
+    const destDir = join(workspacePath, ".forge", "skills");
+    mkdirSync(destDir, { recursive: true });
+
+    const files = readdirSync(skillsDir).filter((f) => f.endsWith(".md"));
+    for (const file of files) {
+      copyFileSync(join(skillsDir, file), join(destDir, file));
+    }
+  }
+
+  /**
    * Write MCP config file for agent to use in the workspace.
    */
   async writeMcpConfig(
     workspacePath: string,
     mcpServers: Record<string, unknown>,
   ): Promise<string> {
-    const forgeDir = join(workspacePath, ".forge");
-    mkdirSync(forgeDir, { recursive: true });
-
-    const configPath = join(forgeDir, "mcp.json");
-    const config = { mcpServers };
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
-
-    return configPath;
+    return writeMcpConfigFile(workspacePath, mcpServers);
   }
 
   /**

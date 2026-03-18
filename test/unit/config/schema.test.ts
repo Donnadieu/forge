@@ -55,4 +55,30 @@ describe("WorkflowConfigSchema", () => {
       }),
     ).toThrow();
   });
+
+  it("accepts optional skills_dir in workspace config", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+      },
+      workspace: {
+        root: "/tmp/workspaces",
+        skills_dir: "./skills",
+      },
+    });
+    expect(config.workspace.skills_dir).toBe("./skills");
+  });
+
+  it("skills_dir defaults to undefined", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+      },
+    });
+    expect(config.workspace.skills_dir).toBeUndefined();
+  });
 });

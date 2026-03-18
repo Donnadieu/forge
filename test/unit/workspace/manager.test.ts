@@ -199,6 +199,52 @@ describe("WorkspaceManager", () => {
     });
   });
 
+  describe("skills injection", () => {
+    it("copies skill files into workspace .forge/skills/", async () => {
+      // Create a skills directory with test skills
+      const skillsDir = join(testRoot, "_skills_source");
+      mkdirSync(skillsDir, { recursive: true });
+      writeFileSync(
+        join(skillsDir, "commit.md"),
+        "---\nname: commit\ndescription: Git commit skill\n---\n# Commit\nSteps...",
+      );
+      writeFileSync(
+        join(skillsDir, "push.md"),
+        "---\nname: push\ndescription: Git push skill\n---\n# Push\nSteps...",
+      );
+      // Non-.md file should be ignored
+      writeFileSync(join(skillsDir, "notes.txt"), "not a skill");
+
+      const skillsManager = new WorkspaceManager({
+        root: testRoot,
+        hooks: {},
+        skillsDir,
+      });
+
+      const path = await skillsManager.ensureWorkspace("MT-500");
+      const copiedCommit = join(path, ".forge", "skills", "commit.md");
+      const copiedPush = join(path, ".forge", "skills", "push.md");
+      const copiedTxt = join(path, ".forge", "skills", "notes.txt");
+
+      expect(existsSync(copiedCommit)).toBe(true);
+      expect(existsSync(copiedPush)).toBe(true);
+      expect(existsSync(copiedTxt)).toBe(false);
+      expect(readFileSync(copiedCommit, "utf-8")).toContain("# Commit");
+    });
+
+    it("handles missing skills directory gracefully", async () => {
+      const skillsManager = new WorkspaceManager({
+        root: testRoot,
+        hooks: {},
+        skillsDir: join(testRoot, "_nonexistent_skills"),
+      });
+
+      // Should not throw
+      const path = await skillsManager.ensureWorkspace("MT-501");
+      expect(existsSync(path)).toBe(true);
+    });
+  });
+
   describe("path safety", () => {
     it("rejects path that equals root", async () => {
       const badManager = new WorkspaceManager({

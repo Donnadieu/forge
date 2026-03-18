@@ -15,6 +15,7 @@ export const WorkflowConfigSchema = z.object({
       after_run: z.string().optional(),
       before_remove: z.string().optional(),
     }).default({}),
+    skills_dir: z.string().optional(),
   }).default({}),
   agent: z.object({
     kind: z.enum(["claude", "codex", "custom"]).default("claude"),
