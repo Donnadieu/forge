@@ -10,27 +10,28 @@ import { WorkflowConfigSchema, type WorkflowConfig } from "./schema.js";
  * - Parses through Zod schema with defaults
  */
 export function resolveConfig(raw: Record<string, unknown>): WorkflowConfig {
-  const resolved = resolveEnvVars(raw);
+  const resolved = resolveEnvVars(raw, new Set(["hooks"]));
   resolved.workspace = resolveWorkspacePaths(resolved.workspace);
   return WorkflowConfigSchema.parse(resolved);
 }
 
-function resolveEnvVars(obj: unknown): any {
+function resolveEnvVars(obj: unknown, skipKeys: Set<string>, currentKey?: string): any {
+  // Skip env var expansion inside hook scripts — the shell resolves those at runtime
+  if (currentKey && skipKeys.has(currentKey)) return obj;
+
   if (typeof obj === "string") {
-    return obj.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (_, braced, bare) => {
+    return obj.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced, bare) => {
       const varName = braced || bare;
       const value = process.env[varName];
-      if (value === undefined) {
-        throw new Error(`Environment variable ${varName} is not set`);
-      }
+      if (value === undefined) return match; // leave unresolved vars as-is
       return value;
     });
   }
-  if (Array.isArray(obj)) return obj.map(resolveEnvVars);
+  if (Array.isArray(obj)) return obj.map((v) => resolveEnvVars(v, skipKeys));
   if (obj && typeof obj === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
-      result[key] = resolveEnvVars(value);
+      result[key] = resolveEnvVars(value, skipKeys, key);
     }
     return result;
   }

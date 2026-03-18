@@ -99,7 +99,11 @@ export class WorkspaceManager {
   /**
    * Run a named lifecycle hook in the workspace directory.
    */
-  async runHook(hookName: keyof WorkspaceConfig["hooks"], workspacePath: string): Promise<void> {
+  async runHook(
+    hookName: keyof WorkspaceConfig["hooks"],
+    workspacePath: string,
+    issueEnv?: Record<string, string>,
+  ): Promise<void> {
     const command = this.config.hooks[hookName];
     if (!command) return;
 
@@ -111,7 +115,7 @@ export class WorkspaceManager {
         shell: "/bin/sh",
         timeout,
         stdio: "pipe",
-        env: { ...process.env, WORKSPACE_PATH: workspacePath },
+        env: { ...process.env, WORKSPACE_PATH: workspacePath, ...issueEnv },
       });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);

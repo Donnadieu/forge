@@ -86,8 +86,8 @@ describe("runWorker", () => {
     expect(result.success).toBe(true);
     expect(result.workspacePath).toBeDefined();
     expect(workspace.ensureWorkspace).toHaveBeenCalledWith(testIssue);
-    expect(workspace.runHook).toHaveBeenCalledWith("before_run", "/tmp/test-workspace");
-    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
+    expect(workspace.runHook).toHaveBeenCalledWith("before_run", "/tmp/test-workspace", expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }));
+    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace", expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }));
   });
 
   it("runs multiple turns while issue stays active", async () => {
@@ -247,7 +247,7 @@ describe("runWorker", () => {
     );
 
     // Should still have run after_run hook
-    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
+    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace", expect.objectContaining({ ISSUE_IDENTIFIER: "MT-42" }));
     expect(result.turns).toBe(1);
     expect(result.success).toBe(false);
   });

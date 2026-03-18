@@ -31,8 +31,16 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     const child = spawn(this.command, args, {
       cwd: params.workspacePath,
       stdio: ["pipe", "pipe", "pipe"],
-      signal: abortController.signal,
     });
+
+    // Handle abort by killing the process instead of using signal option
+    // (signal option throws unhandled AbortError)
+    abortController.signal.addEventListener("abort", () => {
+      if (!child.killed) child.kill("SIGTERM");
+    });
+
+    // Suppress unhandled error events from the child process
+    child.on("error", () => {});
 
     // CRITICAL: Pipe prompt via stdin, never as positional arg (avoids ENAMETOOLONG)
     child.stdin.write(params.prompt);

@@ -50,8 +50,15 @@ export async function runWorker(
     mcpConfigPath = await workspace.writeMcpConfig(workspacePath, config.mcpServers);
   }
 
-  // 3. Run before_run hook
-  await workspace.runHook("before_run", workspacePath);
+  // 3. Run before_run hook with issue env vars
+  const issueEnv: Record<string, string> = {
+    ISSUE_ID: issue.id,
+    ISSUE_IDENTIFIER: issue.identifier,
+    ISSUE_TITLE: issue.title,
+    ISSUE_STATE: issue.state,
+    ISSUE_BRANCH: issue.branchName ?? `forge/${issue.identifier}`,
+  };
+  await workspace.runHook("before_run", workspacePath, issueEnv);
 
   let lastTurnSuccess = true;
 
@@ -151,7 +158,7 @@ export async function runWorker(
     }
   } finally {
     // 5. Run after_run hook
-    await workspace.runHook("after_run", workspacePath);
+    await workspace.runHook("after_run", workspacePath, issueEnv);
   }
 
   return {

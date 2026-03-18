@@ -133,6 +133,40 @@ describe("WorkspaceManager", () => {
       expect(existsSync(join(path, "after.marker"))).toBe(true);
     });
 
+    it("passes issue env vars to hooks", async () => {
+      const managerWithHook = new WorkspaceManager({
+        root: testRoot,
+        hooks: {
+          before_run: 'echo "$ISSUE_IDENTIFIER:$ISSUE_BRANCH" > env.log',
+        },
+      });
+
+      const path = await managerWithHook.ensureWorkspace("MT-500");
+      await managerWithHook.runHook("before_run", path, {
+        ISSUE_ID: "uuid-1",
+        ISSUE_IDENTIFIER: "MT-500",
+        ISSUE_BRANCH: "forge/MT-500",
+        ISSUE_TITLE: "Test issue",
+        ISSUE_STATE: "Todo",
+      });
+
+      const log = readFileSync(join(path, "env.log"), "utf-8").trim();
+      expect(log).toBe("MT-500:forge/MT-500");
+    });
+
+    it("hooks work without issue env vars", async () => {
+      const managerWithHook = new WorkspaceManager({
+        root: testRoot,
+        hooks: {
+          before_run: "touch no-env.marker",
+        },
+      });
+
+      const path = await managerWithHook.ensureWorkspace("MT-501");
+      await managerWithHook.runHook("before_run", path);
+      expect(existsSync(join(path, "no-env.marker"))).toBe(true);
+    });
+
     it("throws on hook failure", async () => {
       const managerWithHook = new WorkspaceManager({
         root: testRoot,

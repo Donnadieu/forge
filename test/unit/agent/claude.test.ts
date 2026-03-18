@@ -430,6 +430,33 @@ describe("ClaudeCodeAdapter", () => {
     );
   });
 
+  it("does not pass signal option to spawn", async () => {
+    const mockProc = createMockProcess([]);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    await adapter.startSession({
+      prompt: "Test",
+      workspacePath: "/tmp/ws",
+    });
+
+    const spawnOptions = vi.mocked(child_process.spawn).mock.calls[0][2] as Record<string, unknown>;
+    expect(spawnOptions).not.toHaveProperty("signal");
+  });
+
+  it("kills process on abort instead of throwing", async () => {
+    const mockProc = createMockProcess([]);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    const handle = await adapter.startSession({
+      prompt: "Test",
+      workspacePath: "/tmp/ws",
+    });
+
+    // Aborting should kill the process, not throw
+    handle.abortController.abort();
+    expect(mockProc.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
   it("defaults to 'claude' command when no option provided", async () => {
     const defaultAdapter = new ClaudeCodeAdapter();
     const mockProc = createMockProcess([]);

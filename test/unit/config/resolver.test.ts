@@ -37,16 +37,53 @@ describe("resolveConfig", () => {
     expect(config.tracker.project_slug).toBe("forge-dev");
   });
 
-  it("throws on missing env var", () => {
-    expect(() =>
-      resolveConfig({
-        tracker: {
-          kind: "linear",
-          project_slug: "$NONEXISTENT_VAR",
-          active_states: ["Todo"],
+  it("leaves unresolved env vars as-is in non-hook strings", () => {
+    const config = resolveConfig({
+      tracker: {
+        kind: "linear",
+        project_slug: "$NONEXISTENT_VAR",
+        active_states: ["Todo"],
+      },
+    });
+    expect(config.tracker.project_slug).toBe("$NONEXISTENT_VAR");
+  });
+
+  it("does not expand env vars inside hooks", () => {
+    process.env.REPO_URL = "https://github.com/test/repo.git";
+    const config = resolveConfig({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+      },
+      workspace: {
+        hooks: {
+          after_create: 'git clone $REPO_URL .',
+          before_run: 'git checkout -b "$ISSUE_BRANCH" origin/main',
         },
-      }),
-    ).toThrow("Environment variable NONEXISTENT_VAR is not set");
+      },
+    });
+    // Hooks should be passed through verbatim — the shell expands them at runtime
+    expect(config.workspace.hooks.after_create).toBe('git clone $REPO_URL .');
+    expect(config.workspace.hooks.before_run).toBe('git checkout -b "$ISSUE_BRANCH" origin/main');
+  });
+
+  it("still expands env vars in non-hook config values", () => {
+    const config = resolveConfig({
+      tracker: {
+        kind: "linear",
+        project_slug: "$TEST_PROJECT",
+        active_states: ["Todo"],
+      },
+      workspace: {
+        hooks: {
+          before_run: 'echo $TEST_PROJECT',
+        },
+      },
+    });
+    expect(config.tracker.project_slug).toBe("forge-dev");
+    // But hook should NOT be expanded
+    expect(config.workspace.hooks.before_run).toBe('echo $TEST_PROJECT');
   });
 
   it("resolves ~ in workspace root", () => {
