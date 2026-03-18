@@ -48,21 +48,13 @@ export function createLogger(opts: LoggerOptions = {}): Logger {
 /**
  * Create a child logger with issue context.
  */
-export function issueLogger(
-  logger: Logger,
-  issueId: string,
-  identifier: string
-): Logger {
+export function issueLogger(logger: Logger, issueId: string, identifier: string): Logger {
   return logger.child({ issueId, identifier });
 }
 
 /**
  * Create a child logger with session context.
  */
-export function sessionLogger(
-  logger: Logger,
-  sessionId: string,
-  workspace: string
-): Logger {
+export function sessionLogger(logger: Logger, sessionId: string, workspace: string): Logger {
   return logger.child({ sessionId, workspace });
 }

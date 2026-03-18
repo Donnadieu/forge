@@ -59,7 +59,9 @@ export function buildPromptContext(
 export function loadSkillsManifest(skillsDir: string): string | undefined {
   if (!existsSync(skillsDir)) return undefined;
 
-  const files = readdirSync(skillsDir).filter((f) => f.endsWith(".md")).sort();
+  const files = readdirSync(skillsDir)
+    .filter((f) => f.endsWith(".md"))
+    .sort();
   if (files.length === 0) return undefined;
 
   const entries: string[] = [];

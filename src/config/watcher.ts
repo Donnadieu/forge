@@ -3,10 +3,7 @@ import { parseWorkflowFile } from "./loader.js";
 import { resolveConfig } from "./resolver.js";
 import type { WorkflowConfig } from "./schema.js";
 
-type ChangeListener = (data: {
-  config: WorkflowConfig;
-  promptTemplate: string;
-}) => void;
+type ChangeListener = (data: { config: WorkflowConfig; promptTemplate: string }) => void;
 
 /**
  * Watches a WORKFLOW.md file for changes and re-parses on change.

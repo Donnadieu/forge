@@ -3,10 +3,7 @@ import { Orchestrator } from "../../../src/orchestrator/orchestrator.js";
 import { selectIssuesToDispatch } from "../../../src/orchestrator/dispatcher.js";
 import { createInitialState } from "../../../src/orchestrator/types.js";
 import { MemoryTracker } from "../../../src/tracker/memory.js";
-import type {
-  AgentAdapter,
-  AgentEvent,
-} from "../../../src/agent/types.js";
+import type { AgentAdapter, AgentEvent } from "../../../src/agent/types.js";
 import type { WorkspaceManager } from "../../../src/workspace/manager.js";
 import type { NormalizedIssue } from "../../../src/tracker/types.js";
 

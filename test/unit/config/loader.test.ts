@@ -33,9 +33,7 @@ You are an expert engineer working on **{{ issue.identifier }}**
     const content = "Just a prompt template with no config";
     const result = parseWorkflowContent(content);
     expect(result.config).toEqual({});
-    expect(result.promptTemplate).toBe(
-      "Just a prompt template with no config",
-    );
+    expect(result.promptTemplate).toBe("Just a prompt template with no config");
   });
 
   it("handles empty content", () => {

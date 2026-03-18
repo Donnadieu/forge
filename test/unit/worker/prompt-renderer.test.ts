@@ -38,8 +38,7 @@ describe("renderPrompt", () => {
   });
 
   it("renders labels array", () => {
-    const template =
-      "Labels: {% for label in issue.labels %}{{ label }} {% endfor %}";
+    const template = "Labels: {% for label in issue.labels %}{{ label }} {% endfor %}";
     const context = buildPromptContext(testIssue);
     const result = renderPrompt(template, context);
     expect(result).toContain("bug");
@@ -47,8 +46,7 @@ describe("renderPrompt", () => {
   });
 
   it("renders attempt number", () => {
-    const template =
-      "{% if attempt %}Retry attempt #{{ attempt }}{% endif %}";
+    const template = "{% if attempt %}Retry attempt #{{ attempt }}{% endif %}";
     const context = buildPromptContext(testIssue, 3);
     const result = renderPrompt(template, context);
     expect(result).toContain("Retry attempt #3");
@@ -176,10 +174,7 @@ describe("loadSkillsManifest", () => {
   it("uses filename as fallback when frontmatter name is missing", () => {
     tempDir = join(tmpdir(), `forge-skills-noname-${Date.now()}`);
     mkdirSync(tempDir, { recursive: true });
-    writeFileSync(
-      join(tempDir, "debug.md"),
-      "---\ndescription: Debug failures\n---\n# Debug",
-    );
+    writeFileSync(join(tempDir, "debug.md"), "---\ndescription: Debug failures\n---\n# Debug");
 
     const manifest = loadSkillsManifest(tempDir);
     expect(manifest).toContain("- debug: Debug failures");

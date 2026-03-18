@@ -1,13 +1,5 @@
-import type {
-  AgentAdapter,
-  AgentEvent,
-  SessionHandle,
-} from "../agent/types.js";
-import type {
-  TrackerAdapter,
-  TrackerConfig,
-  NormalizedIssue,
-} from "../tracker/types.js";
+import type { AgentAdapter, AgentEvent } from "../agent/types.js";
+import type { TrackerAdapter, TrackerConfig, NormalizedIssue } from "../tracker/types.js";
 import type { WorkspaceManager } from "../workspace/manager.js";
 import { renderPrompt, buildPromptContext } from "./prompt-renderer.js";
 
@@ -51,10 +43,7 @@ export async function runWorker(
   // 2. Write MCP config if needed
   let mcpConfigPath: string | undefined;
   if (config.mcpServers) {
-    mcpConfigPath = await workspace.writeMcpConfig(
-      workspacePath,
-      config.mcpServers,
-    );
+    mcpConfigPath = await workspace.writeMcpConfig(workspacePath, config.mcpServers);
   }
 
   // 3. Run before_run hook
@@ -69,10 +58,7 @@ export async function runWorker(
       // Build prompt
       const prompt =
         turnNumber === 1
-          ? renderPrompt(
-              config.promptTemplate,
-              buildPromptContext(issue, 1, config.skillsManifest),
-            )
+          ? renderPrompt(config.promptTemplate, buildPromptContext(issue, 1, config.skillsManifest))
           : `Continue working on ${issue.identifier}. This is turn ${turnNumber} of ${config.maxTurns}.`;
 
       // Spawn agent turn
@@ -116,10 +102,7 @@ export async function runWorker(
       const currentStates = await tracker.fetchIssueStatesByIds([issue.id]);
       const currentState = currentStates.get(issue.id);
 
-      if (
-        !currentState ||
-        !config.trackerConfig.active_states.includes(currentState)
-      ) {
+      if (!currentState || !config.trackerConfig.active_states.includes(currentState)) {
         // Ticket moved out of active state
         break;
       }

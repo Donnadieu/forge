@@ -9,7 +9,10 @@ describe("WorkflowStore", () => {
   let store: WorkflowStore | null = null;
 
   function createTempDir(): string {
-    const dir = join(tmpdir(), `forge-watcher-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const dir = join(
+      tmpdir(),
+      `forge-watcher-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
     mkdirSync(dir, { recursive: true });
     return dir;
   }
@@ -32,13 +35,16 @@ describe("WorkflowStore", () => {
 
   it("loads config on first call to current()", () => {
     tempDir = createTempDir();
-    const filePath = writeWorkflow(tempDir, `---
+    const filePath = writeWorkflow(
+      tempDir,
+      `---
 tracker:
   kind: linear
   project_slug: test-project
   active_states: [Todo]
 ---
-Fix {{ issue.identifier }}`);
+Fix {{ issue.identifier }}`,
+    );
 
     store = new WorkflowStore(filePath);
     const { config, promptTemplate } = store.current();
@@ -50,13 +56,16 @@ Fix {{ issue.identifier }}`);
 
   it("returns cached config on subsequent calls", () => {
     tempDir = createTempDir();
-    const filePath = writeWorkflow(tempDir, `---
+    const filePath = writeWorkflow(
+      tempDir,
+      `---
 tracker:
   kind: linear
   project_slug: cached
   active_states: [Todo]
 ---
-prompt`);
+prompt`,
+    );
 
     store = new WorkflowStore(filePath);
     const first = store.current();
@@ -67,24 +76,30 @@ prompt`);
 
   it("forceReload() re-reads the file", () => {
     tempDir = createTempDir();
-    const filePath = writeWorkflow(tempDir, `---
+    const filePath = writeWorkflow(
+      tempDir,
+      `---
 tracker:
   kind: linear
   project_slug: original
   active_states: [Todo]
 ---
-prompt1`);
+prompt1`,
+    );
 
     store = new WorkflowStore(filePath);
     store.current();
 
-    writeFileSync(filePath, `---
+    writeFileSync(
+      filePath,
+      `---
 tracker:
   kind: linear
   project_slug: updated
   active_states: [Todo]
 ---
-prompt2`);
+prompt2`,
+    );
 
     const result = store.forceReload();
     expect(result.config.tracker.project_slug).toBe("updated");
@@ -93,13 +108,16 @@ prompt2`);
 
   it("emits change events when watching and file changes", async () => {
     tempDir = createTempDir();
-    const filePath = writeWorkflow(tempDir, `---
+    const filePath = writeWorkflow(
+      tempDir,
+      `---
 tracker:
   kind: linear
   project_slug: original
   active_states: [Todo]
 ---
-prompt`);
+prompt`,
+    );
 
     store = new WorkflowStore(filePath, { debounceMs: 10 });
 
@@ -113,13 +131,16 @@ prompt`);
     await new Promise((r) => setTimeout(r, 50));
 
     // Modify the file
-    writeFileSync(filePath, `---
+    writeFileSync(
+      filePath,
+      `---
 tracker:
   kind: linear
   project_slug: changed
   active_states: [Todo]
 ---
-new prompt`);
+new prompt`,
+    );
 
     // Wait for debounced change event
     await new Promise((r) => setTimeout(r, 200));
@@ -129,13 +150,16 @@ new prompt`);
 
   it("close() stops watching", () => {
     tempDir = createTempDir();
-    const filePath = writeWorkflow(tempDir, `---
+    const filePath = writeWorkflow(
+      tempDir,
+      `---
 tracker:
   kind: linear
   project_slug: test
   active_states: [Todo]
 ---
-prompt`);
+prompt`,
+    );
 
     store = new WorkflowStore(filePath);
     store.watch();
@@ -147,13 +171,16 @@ prompt`);
 
   it("watch() is idempotent", () => {
     tempDir = createTempDir();
-    const filePath = writeWorkflow(tempDir, `---
+    const filePath = writeWorkflow(
+      tempDir,
+      `---
 tracker:
   kind: linear
   project_slug: test
   active_states: [Todo]
 ---
-prompt`);
+prompt`,
+    );
 
     store = new WorkflowStore(filePath);
     store.watch();

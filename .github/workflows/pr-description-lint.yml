@@ -7,27 +7,29 @@ on:
 jobs:
   validate-pr-description:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: elixir
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up mise tools
-        uses: jdx/mise-action@v3
-        with:
-          install: true
-          cache: true
-          working_directory: elixir
-
       - name: Validate PR description format
         env:
-          PR_BODY_JSON: ${{ toJson(github.event.pull_request.body) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix deps.get
-          printf '%s' "$PR_BODY_JSON" | jq -r '.' > /tmp/pr_body.md
-          mix pr_body.check --file /tmp/pr_body.md
+          if [ -z "$PR_BODY" ]; then
+            echo "::error::PR description is empty"
+            exit 1
+          fi
+
+          # Check for required sections
+          missing=""
+          for section in "Context" "TL;DR" "Summary" "Test Plan"; do
+            if ! echo "$PR_BODY" | grep -q "#### $section"; then
+              missing="$missing $section"
+            fi
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::error::PR description is missing required sections:$missing"
+            echo "Required sections: Context, TL;DR, Summary, Test Plan"
+            exit 1
+          fi
+
+          echo "PR description format looks good"

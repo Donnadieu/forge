@@ -17,17 +17,14 @@ export function resolveConfig(raw: Record<string, unknown>): WorkflowConfig {
 
 function resolveEnvVars(obj: unknown): any {
   if (typeof obj === "string") {
-    return obj.replace(
-      /\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g,
-      (_, braced, bare) => {
-        const varName = braced || bare;
-        const value = process.env[varName];
-        if (value === undefined) {
-          throw new Error(`Environment variable ${varName} is not set`);
-        }
-        return value;
-      },
-    );
+    return obj.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (_, braced, bare) => {
+      const varName = braced || bare;
+      const value = process.env[varName];
+      if (value === undefined) {
+        throw new Error(`Environment variable ${varName} is not set`);
+      }
+      return value;
+    });
   }
   if (Array.isArray(obj)) return obj.map(resolveEnvVars);
   if (obj && typeof obj === "object") {

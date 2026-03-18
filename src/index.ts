@@ -3,8 +3,6 @@
 import { Command } from "commander";
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { parseWorkflowFile } from "./config/loader.js";
-import { resolveConfig } from "./config/resolver.js";
 import { WorkflowStore } from "./config/watcher.js";
 import { createTracker } from "./tracker/index.js";
 import { createAgent } from "./agent/index.js";
@@ -34,9 +32,7 @@ const program = new Command()
     const { config, promptTemplate } = store.current();
 
     // Set up logger
-    const logFile = options.logsRoot
-      ? resolve(options.logsRoot as string, "forge.log")
-      : undefined;
+    const logFile = options.logsRoot ? resolve(options.logsRoot as string, "forge.log") : undefined;
 
     const logger = createLogger({
       level: (options.logLevel as string) ?? "info",
@@ -51,7 +47,7 @@ const program = new Command()
         maxAgents: config.agent.max_concurrent_agents,
         maxTurns: config.agent.max_turns,
       },
-      "Configuration loaded"
+      "Configuration loaded",
     );
 
     // Create tracker
@@ -68,9 +64,7 @@ const program = new Command()
     const skillsDir = config.workspace.skills_dir
       ? resolve(workflowDir, config.workspace.skills_dir)
       : undefined;
-    const skillsManifest = skillsDir
-      ? loadSkillsManifest(skillsDir)
-      : undefined;
+    const skillsManifest = skillsDir ? loadSkillsManifest(skillsDir) : undefined;
 
     // Create workspace manager
     const workspace = new WorkspaceManager({
@@ -104,22 +98,22 @@ const program = new Command()
         onDispatch: (issue) => {
           logger.info(
             { issueId: issue.id, identifier: issue.identifier },
-            `Dispatching ${issue.identifier}: ${issue.title}`
+            `Dispatching ${issue.identifier}: ${issue.title}`,
           );
         },
         onComplete: (issueId, result) => {
           logger.info(
             { issueId, turns: result.turns, tokens: result.tokens },
-            `Completed ${issueId}`
+            `Completed ${issueId}`,
           );
         },
         onError: (issueId, error) => {
-          logger.error(
-            { issueId, error: error.message },
-            `Worker error for ${issueId}`
-          );
+          logger.error({ issueId, error: error.message }, `Worker error for ${issueId}`);
         },
-      }
+        onPollError: (error) => {
+          logger.error({ error: error.message }, "Poll cycle error");
+        },
+      },
     );
 
     // Graceful shutdown

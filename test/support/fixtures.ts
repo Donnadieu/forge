@@ -1,13 +1,17 @@
-import type { AgentAdapter, AgentEvent, SessionHandle, StartSessionParams } from "../../src/agent/types.js";
+import type {
+  AgentAdapter,
+  AgentEvent,
+  SessionHandle,
+  StartSessionParams,
+} from "../../src/agent/types.js";
 import type { NormalizedIssue } from "../../src/tracker/types.js";
 
 /**
  * Create a mock agent that completes immediately with configurable events.
  */
-export function createMockAgent(options: {
-  events?: AgentEvent[][];
-  failOnTurn?: number;
-} = {}): AgentAdapter {
+export function createMockAgent(
+  options: { events?: AgentEvent[][]; failOnTurn?: number } = {},
+): AgentAdapter {
   let turnIndex = 0;
   const events = options.events || [[{ type: "done", success: true }]];
 

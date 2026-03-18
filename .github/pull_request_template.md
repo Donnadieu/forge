@@ -19,4 +19,5 @@
 #### Test Plan
 
 - [ ] `make -C elixir all`
+- [ ] `make all` (TypeScript)
 - [ ] <!-- Additional targeted checks (list below) -->

@@ -1,7 +1,7 @@
-export {
-  type NormalizedIssue,
-  type TrackerAdapter,
-  type TrackerConfig,
+export type {
+  NormalizedIssue,
+  TrackerAdapter,
+  TrackerConfig,
 } from "./types.js";
 export { MemoryTracker } from "./memory.js";
 export { LinearTracker } from "./linear.js";

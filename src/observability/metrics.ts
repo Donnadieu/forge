@@ -2,10 +2,7 @@
  * Simple in-memory metrics collector for observability.
  */
 export class MetricsCollector {
-  private tokensBySession = new Map<
-    string,
-    { input: number; output: number }
-  >();
+  private tokensBySession = new Map<string, { input: number; output: number }>();
   private sessionDurations = new Map<string, number>();
   private retryCounts = new Map<string, number>();
   private _activeWorkers = 0;

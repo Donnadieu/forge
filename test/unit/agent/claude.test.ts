@@ -13,7 +13,7 @@ function createMockProcess(events: string[]): any {
   const stdout = new Readable({
     read() {
       for (const event of events) {
-        this.push(event + "\n");
+        this.push(`${event}\n`);
       }
       this.push(null);
     },
@@ -139,14 +139,7 @@ describe("ClaudeCodeAdapter", () => {
 
     expect(child_process.spawn).toHaveBeenCalledWith(
       "claude",
-      [
-        "-p",
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--resume",
-        "prev-session-123",
-      ],
+      ["-p", "--output-format", "stream-json", "--verbose", "--resume", "prev-session-123"],
       expect.anything(),
     );
   });
@@ -174,9 +167,9 @@ describe("ClaudeCodeAdapter", () => {
       approvalPolicy: "bypassPermissions",
     });
 
-    expect(
-      vi.mocked(child_process.spawn).mock.calls[0][1],
-    ).toContain("--dangerously-skip-permissions");
+    expect(vi.mocked(child_process.spawn).mock.calls[0][1]).toContain(
+      "--dangerously-skip-permissions",
+    );
   });
 
   it("does not include --dangerously-skip-permissions for other policies", async () => {
@@ -189,15 +182,13 @@ describe("ClaudeCodeAdapter", () => {
       approvalPolicy: "manual",
     });
 
-    expect(
-      vi.mocked(child_process.spawn).mock.calls[0][1],
-    ).not.toContain("--dangerously-skip-permissions");
+    expect(vi.mocked(child_process.spawn).mock.calls[0][1]).not.toContain(
+      "--dangerously-skip-permissions",
+    );
   });
 
   it("streams and maps text events", async () => {
-    const events = [
-      JSON.stringify({ type: "assistant", subtype: "text", text: "Hello world" }),
-    ];
+    const events = [JSON.stringify({ type: "assistant", subtype: "text", text: "Hello world" })];
     const mockProc = createMockProcess(events);
     vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
 
@@ -386,9 +377,7 @@ describe("ClaudeCodeAdapter", () => {
       collected.push(event);
     }
 
-    expect(collected).toEqual([
-      { type: "error", message: "No child process found for session" },
-    ]);
+    expect(collected).toEqual([{ type: "error", message: "No child process found for session" }]);
   });
 
   it("stops a session by killing the process", async () => {
@@ -421,8 +410,6 @@ describe("ClaudeCodeAdapter", () => {
       collected.push(event);
     }
 
-    expect(collected).toEqual([
-      { type: "error", message: "No child process found for session" },
-    ]);
+    expect(collected).toEqual([{ type: "error", message: "No child process found for session" }]);
   });
 });
