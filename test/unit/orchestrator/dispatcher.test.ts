@@ -109,6 +109,51 @@ describe("shouldDispatchIssue", () => {
     }
     expect(shouldDispatchIssue(makeIssue(), state, config)).toBe(false);
   });
+
+  it("rejects when per-state concurrency limit reached", () => {
+    const state = createInitialState();
+    state.running.set("running-1", {
+      issue: makeIssue({ id: "running-1", state: "Todo" }),
+    } as any);
+    state.running.set("running-2", {
+      issue: makeIssue({ id: "running-2", state: "Todo" }),
+    } as any);
+    const perStateConfig = {
+      ...config,
+      max_concurrent_agents_by_state: { Todo: 2 },
+    };
+    expect(
+      shouldDispatchIssue(makeIssue({ id: "new-1", state: "Todo" }), state, perStateConfig),
+    ).toBe(false);
+  });
+
+  it("allows dispatch when per-state limit not reached", () => {
+    const state = createInitialState();
+    state.running.set("running-1", {
+      issue: makeIssue({ id: "running-1", state: "In Progress" }),
+    } as any);
+    const perStateConfig = {
+      ...config,
+      max_concurrent_agents_by_state: { Todo: 2 },
+    };
+    expect(
+      shouldDispatchIssue(makeIssue({ id: "new-1", state: "Todo" }), state, perStateConfig),
+    ).toBe(true);
+  });
+
+  it("ignores per-state limit when not configured for that state", () => {
+    const state = createInitialState();
+    state.running.set("running-1", {
+      issue: makeIssue({ id: "running-1", state: "Todo" }),
+    } as any);
+    const perStateConfig = {
+      ...config,
+      max_concurrent_agents_by_state: { "In Progress": 1 },
+    };
+    expect(
+      shouldDispatchIssue(makeIssue({ id: "new-1", state: "Todo" }), state, perStateConfig),
+    ).toBe(true);
+  });
 });
 
 describe("selectIssuesToDispatch", () => {

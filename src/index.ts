@@ -5,6 +5,8 @@ import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { WorkflowStore } from "./config/watcher.js";
+import { parseWorkflowFile } from "./config/loader.js";
+import { WorkflowConfigSchema } from "./config/schema.js";
 import { createTracker } from "./tracker/index.js";
 import { createAgent } from "./agent/index.js";
 import { WorkspaceManager } from "./workspace/manager.js";
@@ -118,6 +120,7 @@ const program = new Command()
     const workspace = new WorkspaceManager({
       root: config.workspace.root,
       hooks: config.workspace.hooks,
+      hookTimeoutMs: config.workspace.hooks.timeout_ms,
       skillsDir,
     });
 
@@ -173,6 +176,32 @@ const program = new Command()
 
     logger.info("Forge started — polling for issues");
     orchestrator.start();
+  });
+
+program
+  .command("validate [workflow]")
+  .description("Parse and validate WORKFLOW.md, report errors, then exit")
+  .action((workflowPath = "WORKFLOW.md") => {
+    const resolvedPath = resolve(workflowPath);
+
+    if (!existsSync(resolvedPath)) {
+      console.error(`Error: Workflow file not found: ${resolvedPath}`);
+      process.exit(1);
+    }
+
+    try {
+      const { config, promptTemplate } = parseWorkflowFile(resolvedPath);
+      WorkflowConfigSchema.parse(config);
+      if (!promptTemplate.trim()) {
+        console.error("Warning: prompt template body is empty");
+      }
+      console.log(`Valid: ${resolvedPath}`);
+      process.exit(0);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`Invalid: ${msg}`);
+      process.exit(1);
+    }
   });
 
 program.parse();

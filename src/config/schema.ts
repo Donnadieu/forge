@@ -16,6 +16,7 @@ export const WorkflowConfigSchema = z.object({
           before_run: z.string().optional(),
           after_run: z.string().optional(),
           before_remove: z.string().optional(),
+          timeout_ms: z.number().default(60000),
         })
         .default({}),
       skills_dir: z.string().optional(),
@@ -25,6 +26,7 @@ export const WorkflowConfigSchema = z.object({
     .object({
       kind: z.enum(["claude", "codex", "custom"]).default("claude"),
       max_concurrent_agents: z.number().default(10),
+      max_concurrent_agents_by_state: z.record(z.string(), z.number()).default({}),
       max_turns: z.number().default(20),
       poll_interval_seconds: z.number().default(30),
       stall_timeout_seconds: z.number().default(300),

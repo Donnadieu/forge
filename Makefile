@@ -3,19 +3,19 @@
 all: build fmt-check lint test
 
 build:
-	npm run build
+	pnpm run build
 
 test:
-	npm test
+	pnpm test
 
 lint:
-	npm run lint
+	pnpm run lint
 
 fmt:
-	npm run fmt
+	pnpm run fmt
 
 fmt-check:
-	npm run fmt:check
+	pnpm run fmt:check
 
 coverage:
-	npm run test:coverage
+	pnpm run test:coverage

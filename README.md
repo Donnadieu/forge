@@ -37,11 +37,14 @@ pnpm build
 ### Run
 
 ```bash
-# Validate config without spawning agents
+# Validate config (parse + schema check, no tracker credentials needed)
+forge validate
+
+# Preview what would be dispatched (requires tracker credentials)
 forge --dry-run
 
 # Start the orchestrator
-forge start
+forge
 ```
 
 ## Architecture
