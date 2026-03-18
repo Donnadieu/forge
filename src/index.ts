@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { WorkflowStore } from "./config/watcher.js";
 import { createTracker } from "./tracker/index.js";
 import { createAgent } from "./agent/index.js";
@@ -19,6 +20,7 @@ const program = new Command()
   .option("--logs-root <path>", "Directory for log files")
   .option("--port <number>", "HTTP server port", parseInt)
   .option("--log-level <level>", "Log level", "info")
+  .option("--dry-run", "Show what would be dispatched without spawning agents")
   .action(async (workflowPath: string, options: Record<string, unknown>) => {
     const resolvedPath = resolve(workflowPath);
 
@@ -50,11 +52,37 @@ const program = new Command()
       "Configuration loaded",
     );
 
-    // Create tracker
+    // Create tracker with API key from environment
     const tracker = createTracker(config.tracker.kind, {
-      endpoint: undefined, // LinearTracker uses config
-      apiKey: undefined,
+      apiKey: process.env.LINEAR_API_KEY,
     });
+
+    const trackerConfig = {
+      kind: config.tracker.kind,
+      project_slug: config.tracker.project_slug,
+      active_states: config.tracker.active_states,
+      terminal_states: config.tracker.terminal_states,
+    };
+
+    // Dry-run: fetch candidates and show what would be dispatched, then exit
+    if (options.dryRun) {
+      try {
+        const candidates = await tracker.fetchCandidates(trackerConfig);
+        logger.info({ count: candidates.length }, "Dry-run: fetched candidates");
+        for (const issue of candidates) {
+          logger.info(
+            { identifier: issue.identifier, priority: issue.priority, state: issue.state },
+            `  ${issue.identifier}: ${issue.title}`,
+          );
+        }
+        logger.info("Dry-run complete — no agents spawned");
+        process.exit(0);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.error({ error: msg }, "Dry-run failed");
+        process.exit(1);
+      }
+    }
 
     // Create agent adapter
     const agent = createAgent(config.agent.kind);
@@ -65,6 +93,26 @@ const program = new Command()
       ? resolve(workflowDir, config.workspace.skills_dir)
       : undefined;
     const skillsManifest = skillsDir ? loadSkillsManifest(skillsDir) : undefined;
+
+    // Build MCP servers config for agents (Linear tracker gets an MCP server)
+    let mcpServers: Record<string, unknown> | undefined;
+    if (config.tracker.kind === "linear") {
+      const mcpServerPath = resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "mcp",
+        "linear-graphql-server.js",
+      );
+      mcpServers = {
+        "forge-linear": {
+          command: "node",
+          args: [mcpServerPath],
+          env: {
+            LINEAR_API_KEY: process.env.LINEAR_API_KEY ?? "",
+            LINEAR_ENDPOINT: "https://api.linear.app/graphql",
+          },
+        },
+      };
+    }
 
     // Create workspace manager
     const workspace = new WorkspaceManager({
@@ -85,13 +133,9 @@ const program = new Command()
         stallTimeoutSeconds: config.agent.stall_timeout_seconds,
         maxRetryAttempts: config.retry.max_attempts,
         maxRetryDelayMs: config.retry.max_delay_seconds * 1000,
-        trackerConfig: {
-          kind: config.tracker.kind,
-          project_slug: config.tracker.project_slug,
-          active_states: config.tracker.active_states,
-          terminal_states: config.tracker.terminal_states,
-        },
+        trackerConfig,
         promptTemplate,
+        mcpServers,
         skillsManifest,
       },
       {

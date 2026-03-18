@@ -11,6 +11,9 @@ See [`SPEC.md`](SPEC.md) Section 3 (System Overview) for the language-agnostic d
 │  Layer 4: Entry                                         │
 │  src/index.ts (CLI) — wires all modules together        │
 ├─────────────────────────────────────────────────────────┤
+│  Standalone: MCP Servers                                │
+│  mcp/ — per-tracker MCP servers for agent tool access   │
+├─────────────────────────────────────────────────────────┤
 │  Layer 3: Coordination                                  │
 │  orchestrator/ — polling, dispatch, reconciliation,     │
 │                  retries, state management               │
@@ -44,6 +47,7 @@ See [`SPEC.md`](SPEC.md) Section 3 (System Overview) for the language-agnostic d
 | `tracker/` (impls) | 1 | LinearTracker, MemoryTracker | `tracker/types` |
 | `worker/` | 2 | Per-issue execution loop, prompt rendering | `agent/types`, `tracker/types`, `workspace` |
 | `orchestrator/` | 3 | Polling, dispatch, reconciliation, retries | `agent/types`, `tracker/types`, `workspace`, `worker` |
+| `mcp/` | standalone | MCP servers for agent tool access (Linear GraphQL) | (none) |
 | `index.ts` | 4 | CLI entry, wiring | all modules |
 
 ## Dependency Rules
@@ -52,6 +56,7 @@ See [`SPEC.md`](SPEC.md) Section 3 (System Overview) for the language-agnostic d
 2. **No circular imports**: If module A imports from B, B must not import from A.
 3. **types.ts as contract**: Cross-module imports should target `types.ts`, not implementation files.
 4. **Intra-module freedom**: Files within a module may import freely from siblings (e.g., `orchestrator/dispatcher.ts` → `orchestrator/types.ts`).
+5. **Standalone modules**: MCP servers are self-contained entry points with no cross-module imports. They are spawned as child processes by the workspace layer.
 
 These rules are enforced by `test/architecture/boundaries.test.ts`.
 
@@ -70,6 +75,13 @@ These rules are enforced by `test/architecture/boundaries.test.ts`.
 2. Add a case to the factory in `src/agent/index.ts`.
 3. Add the kind to `AgentKindSchema` in `src/config/schema.ts`.
 4. Write tests in `test/unit/agent/<kind>.test.ts`.
+
+### Adding a new MCP server
+
+1. Create `src/mcp/<name>-server.ts` as a standalone stdio MCP server.
+2. Add `mcp` to `ALLOWED_DEPS` in `test/architecture/boundaries.test.ts` (already done — `mcp: []`).
+3. Wire the server path into `src/index.ts` where MCP config is built.
+4. Write tests in `test/unit/mcp/<name>.test.ts`.
 
 ### Adding a new module
 
