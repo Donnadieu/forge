@@ -132,7 +132,10 @@ const program = new Command()
         const safeId = workspace.toSafeId(issue.identifier);
         const wsPath = resolve(config.workspace.root, safeId);
         if (existsSync(wsPath)) {
-          logger.info({ identifier: issue.identifier, path: wsPath }, "Cleaning up terminal workspace");
+          logger.info(
+            { identifier: issue.identifier, path: wsPath },
+            "Cleaning up terminal workspace",
+          );
           await workspace.removeWorkspace(wsPath);
         }
       }

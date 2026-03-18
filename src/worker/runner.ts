@@ -154,8 +154,10 @@ export async function runWorker(
 
         // Only break on confirmed non-active state.
         // If the map has no entry (e.g. transient API failure), continue working.
-        if (currentState !== undefined &&
-            !config.trackerConfig.active_states.includes(currentState)) {
+        if (
+          currentState !== undefined &&
+          !config.trackerConfig.active_states.includes(currentState)
+        ) {
           break;
         }
       } catch {

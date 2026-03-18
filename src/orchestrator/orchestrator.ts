@@ -167,8 +167,10 @@ export class Orchestrator {
     try {
       const states = await this.tracker.fetchIssueStatesByIds([issue.id]);
       const currentState = states.get(issue.id);
-      if (currentState !== undefined &&
-          !this.config.trackerConfig.active_states.includes(currentState)) {
+      if (
+        currentState !== undefined &&
+        !this.config.trackerConfig.active_states.includes(currentState)
+      ) {
         return;
       }
     } catch {

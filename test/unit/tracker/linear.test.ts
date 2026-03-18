@@ -401,25 +401,32 @@ describe("LinearTracker", () => {
 
   describe("updateIssueState", () => {
     it("fetches team states and updates issue with correct stateId", async () => {
-      const fetchMock = vi.fn()
+      const fetchMock = vi
+        .fn()
         .mockResolvedValueOnce({
-          ok: true, status: 200, statusText: "OK",
+          ok: true,
+          status: 200,
+          statusText: "OK",
           json: async () => ({
             data: {
               issue: {
                 team: {
-                  states: { nodes: [
-                    { id: "state-1", name: "Todo" },
-                    { id: "state-2", name: "In Progress" },
-                    { id: "state-3", name: "Done" },
-                  ]},
+                  states: {
+                    nodes: [
+                      { id: "state-1", name: "Todo" },
+                      { id: "state-2", name: "In Progress" },
+                      { id: "state-3", name: "Done" },
+                    ],
+                  },
                 },
               },
             },
           }),
         })
         .mockResolvedValueOnce({
-          ok: true, status: 200, statusText: "OK",
+          ok: true,
+          status: 200,
+          statusText: "OK",
           json: async () => ({
             data: { issueUpdate: { success: true } },
           }),
@@ -482,9 +489,7 @@ describe("LinearTracker", () => {
       const tracker = new LinearTracker(undefined, "lin_api_test");
       await tracker.createComment("issue-xyz", "My comment body");
 
-      const body = JSON.parse(
-        (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
-      );
+      const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
       expect(body.variables.issueId).toBe("issue-xyz");
       expect(body.variables.body).toBe("My comment body");
     });
