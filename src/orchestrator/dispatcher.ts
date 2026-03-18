@@ -21,6 +21,7 @@ export function shouldDispatchIssue(
     active_states: string[];
     terminal_states: string[];
     max_concurrent_agents: number;
+    max_concurrent_agents_by_state?: Record<string, number>;
   },
 ): boolean {
   // Already running
@@ -44,6 +45,16 @@ export function shouldDispatchIssue(
   // Check concurrency limit
   if (state.running.size >= config.max_concurrent_agents) return false;
 
+  // Check per-state concurrency limit
+  const perStateLimit = config.max_concurrent_agents_by_state?.[issue.state];
+  if (perStateLimit !== undefined) {
+    let countInState = 0;
+    for (const [, entry] of state.running) {
+      if (entry.issue.state === issue.state) countInState++;
+    }
+    if (countInState >= perStateLimit) return false;
+  }
+
   return true;
 }
 
@@ -64,6 +75,7 @@ export function selectIssuesToDispatch(
     active_states: string[];
     terminal_states: string[];
     max_concurrent_agents: number;
+    max_concurrent_agents_by_state?: Record<string, number>;
   },
 ): NormalizedIssue[] {
   const sorted = sortIssuesForDispatch(candidates);

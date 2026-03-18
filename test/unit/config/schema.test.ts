@@ -67,6 +67,59 @@ describe("WorkflowConfigSchema", () => {
     expect(config.workspace.skills_dir).toBe("./skills");
   });
 
+  it("applies default hooks timeout_ms", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+      },
+    });
+    expect(config.workspace.hooks.timeout_ms).toBe(60000);
+  });
+
+  it("accepts custom hooks timeout_ms", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+      },
+      workspace: {
+        hooks: { timeout_ms: 120000 },
+      },
+    });
+    expect(config.workspace.hooks.timeout_ms).toBe(120000);
+  });
+
+  it("applies default max_concurrent_agents_by_state as empty object", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+      },
+    });
+    expect(config.agent.max_concurrent_agents_by_state).toEqual({});
+  });
+
+  it("accepts max_concurrent_agents_by_state limits", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+      },
+      agent: {
+        max_concurrent_agents_by_state: { Todo: 3, "In Progress": 5 },
+      },
+    });
+    expect(config.agent.max_concurrent_agents_by_state).toEqual({
+      Todo: 3,
+      "In Progress": 5,
+    });
+  });
+
   it("skills_dir defaults to undefined", () => {
     const config = WorkflowConfigSchema.parse({
       tracker: {
