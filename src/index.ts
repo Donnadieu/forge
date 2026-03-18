@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { WorkflowStore } from "./config/watcher.js";
 import { createTracker } from "./tracker/index.js";
@@ -9,6 +9,7 @@ import { createAgent } from "./agent/index.js";
 import { WorkspaceManager } from "./workspace/manager.js";
 import { Orchestrator } from "./orchestrator/orchestrator.js";
 import { createLogger } from "./observability/logger.js";
+import { loadSkillsManifest } from "./worker/prompt-renderer.js";
 
 const program = new Command()
   .name("forge")
@@ -58,10 +59,18 @@ const program = new Command()
     // Create agent adapter
     const agent = createAgent(config.agent.kind);
 
+    // Resolve skills directory relative to workflow file
+    const workflowDir = dirname(resolvedPath);
+    const skillsDir = config.workspace.skills_dir
+      ? resolve(workflowDir, config.workspace.skills_dir)
+      : undefined;
+    const skillsManifest = skillsDir ? loadSkillsManifest(skillsDir) : undefined;
+
     // Create workspace manager
     const workspace = new WorkspaceManager({
       root: config.workspace.root,
       hooks: config.workspace.hooks,
+      skillsDir,
     });
 
     // Create and start orchestrator
@@ -83,6 +92,7 @@ const program = new Command()
           terminal_states: config.tracker.terminal_states,
         },
         promptTemplate,
+        skillsManifest,
       },
       {
         onDispatch: (issue) => {

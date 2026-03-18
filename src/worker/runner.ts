@@ -8,6 +8,7 @@ export interface WorkerConfig {
   promptTemplate: string;
   trackerConfig: TrackerConfig;
   mcpServers?: Record<string, unknown>;
+  skillsManifest?: string;
 }
 
 export interface WorkerResult {
@@ -57,7 +58,7 @@ export async function runWorker(
       // Build prompt
       const prompt =
         turnNumber === 1
-          ? renderPrompt(config.promptTemplate, buildPromptContext(issue, 1))
+          ? renderPrompt(config.promptTemplate, buildPromptContext(issue, 1, config.skillsManifest))
           : `Continue working on ${issue.identifier}. This is turn ${turnNumber} of ${config.maxTurns}.`;
 
       // Spawn agent turn

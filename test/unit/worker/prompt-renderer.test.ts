@@ -1,6 +1,13 @@
-import { describe, it, expect } from "vitest";
-import { renderPrompt, buildPromptContext } from "../../../src/worker/prompt-renderer.js";
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  renderPrompt,
+  buildPromptContext,
+  loadSkillsManifest,
+} from "../../../src/worker/prompt-renderer.js";
 import type { NormalizedIssue } from "../../../src/tracker/types.js";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const testIssue: NormalizedIssue = {
   id: "issue-1",
@@ -113,5 +120,63 @@ describe("buildPromptContext", () => {
     expect(context.issue.blockers).toEqual([
       { id: "blocker-1", identifier: "MT-41", state: "In Progress" },
     ]);
+  });
+
+  it("includes skills manifest when provided", () => {
+    const manifest = "Available skills:\n- commit: Git commit";
+    const context = buildPromptContext(testIssue, 1, manifest);
+    expect(context.skills_manifest).toBe(manifest);
+  });
+
+  it("skills_manifest is undefined when not provided", () => {
+    const context = buildPromptContext(testIssue);
+    expect(context.skills_manifest).toBeUndefined();
+  });
+});
+
+describe("loadSkillsManifest", () => {
+  let tempDir: string;
+
+  afterEach(() => {
+    if (tempDir) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("builds manifest from skill frontmatter", () => {
+    tempDir = join(tmpdir(), `forge-skills-test-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+    writeFileSync(
+      join(tempDir, "commit.md"),
+      "---\nname: commit\ndescription: Create well-formed git commits\n---\n# Commit",
+    );
+    writeFileSync(
+      join(tempDir, "push.md"),
+      "---\nname: push\ndescription: Push branch and create PR\n---\n# Push",
+    );
+
+    const manifest = loadSkillsManifest(tempDir);
+    expect(manifest).toContain("Available workflow skills");
+    expect(manifest).toContain("- commit: Create well-formed git commits");
+    expect(manifest).toContain("- push: Push branch and create PR");
+  });
+
+  it("returns undefined for nonexistent directory", () => {
+    expect(loadSkillsManifest("/nonexistent/path")).toBeUndefined();
+  });
+
+  it("returns undefined for empty directory", () => {
+    tempDir = join(tmpdir(), `forge-skills-empty-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+    expect(loadSkillsManifest(tempDir)).toBeUndefined();
+  });
+
+  it("uses filename as fallback when frontmatter name is missing", () => {
+    tempDir = join(tmpdir(), `forge-skills-noname-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+    writeFileSync(join(tempDir, "debug.md"), "---\ndescription: Debug failures\n---\n# Debug");
+
+    const manifest = loadSkillsManifest(tempDir);
+    expect(manifest).toContain("- debug: Debug failures");
   });
 });
