@@ -1,8 +1,4 @@
-import type {
-  NormalizedIssue,
-  TrackerAdapter,
-  TrackerConfig,
-} from "./types.js";
+import type { NormalizedIssue, TrackerAdapter, TrackerConfig } from "./types.js";
 
 export class MemoryTracker implements TrackerAdapter {
   readonly kind = "memory";
@@ -38,11 +34,7 @@ export class MemoryTracker implements TrackerAdapter {
     return result;
   }
 
-  async fetchTerminalIssues(
-    config: TrackerConfig,
-  ): Promise<NormalizedIssue[]> {
-    return this.issues.filter((i) =>
-      config.terminal_states.includes(i.state),
-    );
+  async fetchTerminalIssues(config: TrackerConfig): Promise<NormalizedIssue[]> {
+    return this.issues.filter((i) => config.terminal_states.includes(i.state));
   }
 }

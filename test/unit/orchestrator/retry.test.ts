@@ -35,19 +35,10 @@ describe("scheduleRetry", () => {
     const state = createInitialState();
     const onRetry = vi.fn();
 
-    scheduleRetry(
-      state,
-      "id-1",
-      "MT-1",
-      1,
-      "continuation",
-      null,
-      300_000,
-      onRetry,
-    );
+    scheduleRetry(state, "id-1", "MT-1", 1, "continuation", null, 300_000, onRetry);
 
     expect(state.retryAttempts.has("id-1")).toBe(true);
-    expect(state.retryAttempts.get("id-1")!.attempt).toBe(1);
+    expect(state.retryAttempts.get("id-1")?.attempt).toBe(1);
 
     vi.advanceTimersByTime(1_500);
     expect(onRetry).toHaveBeenCalledWith("id-1");
@@ -59,27 +50,9 @@ describe("scheduleRetry", () => {
     const state = createInitialState();
     const onRetry = vi.fn();
 
-    scheduleRetry(
-      state,
-      "id-1",
-      "MT-1",
-      1,
-      "failure",
-      null,
-      300_000,
-      onRetry,
-    );
+    scheduleRetry(state, "id-1", "MT-1", 1, "failure", null, 300_000, onRetry);
 
-    scheduleRetry(
-      state,
-      "id-1",
-      "MT-1",
-      2,
-      "failure",
-      null,
-      300_000,
-      onRetry,
-    );
+    scheduleRetry(state, "id-1", "MT-1", 2, "failure", null, 300_000, onRetry);
 
     // First timer should be cleared
     vi.advanceTimersByTime(15_000); // Past first delay
@@ -94,16 +67,7 @@ describe("cancelRetry", () => {
   it("removes retry entry and clears timer", () => {
     vi.useFakeTimers();
     const state = createInitialState();
-    scheduleRetry(
-      state,
-      "id-1",
-      "MT-1",
-      1,
-      "failure",
-      null,
-      300_000,
-      vi.fn(),
-    );
+    scheduleRetry(state, "id-1", "MT-1", 1, "failure", null, 300_000, vi.fn());
 
     expect(state.retryAttempts.has("id-1")).toBe(true);
     cancelRetry(state, "id-1");
@@ -116,26 +80,8 @@ describe("cancelAllRetries", () => {
   it("cancels all pending retries", () => {
     vi.useFakeTimers();
     const state = createInitialState();
-    scheduleRetry(
-      state,
-      "id-1",
-      "MT-1",
-      1,
-      "failure",
-      null,
-      300_000,
-      vi.fn(),
-    );
-    scheduleRetry(
-      state,
-      "id-2",
-      "MT-2",
-      1,
-      "failure",
-      null,
-      300_000,
-      vi.fn(),
-    );
+    scheduleRetry(state, "id-1", "MT-1", 1, "failure", null, 300_000, vi.fn());
+    scheduleRetry(state, "id-2", "MT-2", 1, "failure", null, 300_000, vi.fn());
 
     expect(state.retryAttempts.size).toBe(2);
     cancelAllRetries(state);

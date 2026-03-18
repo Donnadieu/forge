@@ -83,9 +83,7 @@ describe("shouldDispatchIssue", () => {
 
   it("rejects issue not in active state", () => {
     const state = createInitialState();
-    expect(
-      shouldDispatchIssue(makeIssue({ state: "Done" }), state, config),
-    ).toBe(false);
+    expect(shouldDispatchIssue(makeIssue({ state: "Done" }), state, config)).toBe(false);
   });
 
   it("rejects issue with active blockers", () => {

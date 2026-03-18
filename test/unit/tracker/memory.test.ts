@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MemoryTracker } from "../../../src/tracker/memory.js";
-import type {
-  NormalizedIssue,
-  TrackerConfig,
-} from "../../../src/tracker/types.js";
+import type { NormalizedIssue, TrackerConfig } from "../../../src/tracker/types.js";
 
 function makeIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
   return {
@@ -89,9 +86,7 @@ describe("MemoryTracker", () => {
     });
 
     it("returns empty array when no issues match active states", async () => {
-      const tracker = new MemoryTracker([
-        makeIssue({ id: "1", state: "Done" }),
-      ]);
+      const tracker = new MemoryTracker([makeIssue({ id: "1", state: "Done" })]);
       const config = makeConfig({ active_states: ["Todo"] });
       const result = await tracker.fetchCandidates(config);
       expect(result).toEqual([]);
@@ -114,9 +109,7 @@ describe("MemoryTracker", () => {
     });
 
     it("omits ids that do not exist", async () => {
-      const tracker = new MemoryTracker([
-        makeIssue({ id: "a", state: "Todo" }),
-      ]);
+      const tracker = new MemoryTracker([makeIssue({ id: "a", state: "Todo" })]);
 
       const result = await tracker.fetchIssueStatesByIds(["a", "missing"]);
       expect(result.size).toBe(1);
@@ -124,9 +117,7 @@ describe("MemoryTracker", () => {
     });
 
     it("returns empty map for empty ids array", async () => {
-      const tracker = new MemoryTracker([
-        makeIssue({ id: "a", state: "Todo" }),
-      ]);
+      const tracker = new MemoryTracker([makeIssue({ id: "a", state: "Todo" })]);
       const result = await tracker.fetchIssueStatesByIds([]);
       expect(result.size).toBe(0);
     });
@@ -150,9 +141,7 @@ describe("MemoryTracker", () => {
     });
 
     it("returns empty array when no issues match terminal states", async () => {
-      const tracker = new MemoryTracker([
-        makeIssue({ id: "1", state: "Todo" }),
-      ]);
+      const tracker = new MemoryTracker([makeIssue({ id: "1", state: "Todo" })]);
       const config = makeConfig({ terminal_states: ["Done"] });
       const result = await tracker.fetchTerminalIssues(config);
       expect(result).toEqual([]);
@@ -161,9 +150,7 @@ describe("MemoryTracker", () => {
 
   describe("updateIssueState", () => {
     it("changes the state of an existing issue", async () => {
-      const tracker = new MemoryTracker([
-        makeIssue({ id: "1", state: "Todo" }),
-      ]);
+      const tracker = new MemoryTracker([makeIssue({ id: "1", state: "Todo" })]);
 
       tracker.updateIssueState("1", "Done");
 
@@ -178,9 +165,7 @@ describe("MemoryTracker", () => {
     });
 
     it("reflects state change in fetchCandidates", async () => {
-      const tracker = new MemoryTracker([
-        makeIssue({ id: "1", state: "Todo" }),
-      ]);
+      const tracker = new MemoryTracker([makeIssue({ id: "1", state: "Todo" })]);
       const config = makeConfig({ active_states: ["Todo"] });
 
       expect(await tracker.fetchCandidates(config)).toHaveLength(1);
@@ -191,9 +176,7 @@ describe("MemoryTracker", () => {
     });
 
     it("reflects state change in fetchIssueStatesByIds", async () => {
-      const tracker = new MemoryTracker([
-        makeIssue({ id: "1", state: "Todo" }),
-      ]);
+      const tracker = new MemoryTracker([makeIssue({ id: "1", state: "Todo" })]);
 
       tracker.updateIssueState("1", "In Progress");
 

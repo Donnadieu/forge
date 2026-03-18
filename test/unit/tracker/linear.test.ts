@@ -168,16 +168,16 @@ describe("LinearTracker", () => {
 
     it("throws when API key is missing", async () => {
       const tracker = new LinearTracker();
-      await expect(
-        tracker.fetchCandidates(makeConfig()),
-      ).rejects.toThrow("Linear API key is required");
+      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow(
+        "Linear API key is required",
+      );
     });
 
     it("throws when project slug is missing", async () => {
       const tracker = new LinearTracker(undefined, "lin_api_test");
-      await expect(
-        tracker.fetchCandidates(makeConfig({ project_slug: "" })),
-      ).rejects.toThrow("Linear project slug is required");
+      await expect(tracker.fetchCandidates(makeConfig({ project_slug: "" }))).rejects.toThrow(
+        "Linear project slug is required",
+      );
     });
 
     it("sends correct authorization header", async () => {
@@ -194,8 +194,10 @@ describe("LinearTracker", () => {
       const tracker = new LinearTracker(undefined, "lin_api_my_key");
       await tracker.fetchCandidates(makeConfig());
 
-      const headers = (fetchMock.mock.calls[0] as [string, RequestInit])[1]
-        .headers as Record<string, string>;
+      const headers = (fetchMock.mock.calls[0] as [string, RequestInit])[1].headers as Record<
+        string,
+        string
+      >;
       expect(headers.Authorization).toBe("lin_api_my_key");
     });
 
@@ -210,10 +212,7 @@ describe("LinearTracker", () => {
       });
       globalThis.fetch = fetchMock;
 
-      const tracker = new LinearTracker(
-        "https://custom.linear.dev/graphql",
-        "key",
-      );
+      const tracker = new LinearTracker("https://custom.linear.dev/graphql", "key");
       await tracker.fetchCandidates(makeConfig());
 
       const url = (fetchMock.mock.calls[0] as [string, RequestInit])[0];
@@ -346,9 +345,7 @@ describe("LinearTracker", () => {
       const tracker = new LinearTracker(undefined, "key");
       await tracker.fetchIssueStatesByIds(["id-a"]);
 
-      const body = JSON.parse(
-        (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
-      );
+      const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
       // The query should use issues(filter: { id: { in: ... } }), not nodes(ids: ...)
       expect(body.query).toContain("issues(filter:");
       expect(body.query).toContain("id: { in: $ids }");
@@ -375,9 +372,9 @@ describe("LinearTracker", () => {
 
     it("throws when project slug is missing", async () => {
       const tracker = new LinearTracker(undefined, "key");
-      await expect(
-        tracker.fetchTerminalIssues(makeConfig({ project_slug: "" })),
-      ).rejects.toThrow("Linear project slug is required");
+      await expect(tracker.fetchTerminalIssues(makeConfig({ project_slug: "" }))).rejects.toThrow(
+        "Linear project slug is required",
+      );
     });
   });
 
@@ -386,9 +383,7 @@ describe("LinearTracker", () => {
       globalThis.fetch = mockFetchResponse({}, false, 500);
 
       const tracker = new LinearTracker(undefined, "key");
-      await expect(
-        tracker.fetchCandidates(makeConfig()),
-      ).rejects.toThrow("Linear API error: 500");
+      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow("Linear API error: 500");
     });
 
     it("throws on GraphQL errors in response", async () => {
@@ -397,18 +392,18 @@ describe("LinearTracker", () => {
       });
 
       const tracker = new LinearTracker(undefined, "key");
-      await expect(
-        tracker.fetchCandidates(makeConfig()),
-      ).rejects.toThrow("Linear GraphQL error: Field not found");
+      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow(
+        "Linear GraphQL error: Field not found",
+      );
     });
 
     it("throws when response has no data", async () => {
       globalThis.fetch = mockFetchResponse({});
 
       const tracker = new LinearTracker(undefined, "key");
-      await expect(
-        tracker.fetchCandidates(makeConfig()),
-      ).rejects.toThrow("Linear API returned no data");
+      await expect(tracker.fetchCandidates(makeConfig())).rejects.toThrow(
+        "Linear API returned no data",
+      );
     });
   });
 });

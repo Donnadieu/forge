@@ -22,10 +22,7 @@ export function renderPrompt(template: string, context: PromptContext): string {
   return engine.parseAndRenderSync(template, context);
 }
 
-export function buildPromptContext(
-  issue: NormalizedIssue,
-  attempt?: number,
-): PromptContext {
+export function buildPromptContext(issue: NormalizedIssue, attempt?: number): PromptContext {
   return {
     issue: {
       id: issue.id,

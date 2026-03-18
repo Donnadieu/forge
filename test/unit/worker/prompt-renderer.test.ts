@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  renderPrompt,
-  buildPromptContext,
-} from "../../../src/worker/prompt-renderer.js";
+import { renderPrompt, buildPromptContext } from "../../../src/worker/prompt-renderer.js";
 import type { NormalizedIssue } from "../../../src/tracker/types.js";
 
 const testIssue: NormalizedIssue = {
@@ -34,8 +31,7 @@ describe("renderPrompt", () => {
   });
 
   it("renders labels array", () => {
-    const template =
-      "Labels: {% for label in issue.labels %}{{ label }} {% endfor %}";
+    const template = "Labels: {% for label in issue.labels %}{{ label }} {% endfor %}";
     const context = buildPromptContext(testIssue);
     const result = renderPrompt(template, context);
     expect(result).toContain("bug");
@@ -43,8 +39,7 @@ describe("renderPrompt", () => {
   });
 
   it("renders attempt number", () => {
-    const template =
-      "{% if attempt %}Retry attempt #{{ attempt }}{% endif %}";
+    const template = "{% if attempt %}Retry attempt #{{ attempt }}{% endif %}";
     const context = buildPromptContext(testIssue, 3);
     const result = renderPrompt(template, context);
     expect(result).toContain("Retry attempt #3");

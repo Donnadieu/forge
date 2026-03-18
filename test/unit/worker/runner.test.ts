@@ -1,10 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { runWorker } from "../../../src/worker/runner.js";
-import type {
-  AgentAdapter,
-  AgentEvent,
-  SessionHandle,
-} from "../../../src/agent/types.js";
+import type { AgentAdapter, AgentEvent, SessionHandle } from "../../../src/agent/types.js";
 import type { NormalizedIssue } from "../../../src/tracker/types.js";
 import { MemoryTracker } from "../../../src/tracker/memory.js";
 import type { WorkspaceManager } from "../../../src/workspace/manager.js";
@@ -26,16 +22,14 @@ function createMockAgent(events: AgentEvent[][]): AgentAdapter {
   let turnIndex = 0;
   return {
     name: "mock",
-    async startSession(params) {
+    async startSession(_params) {
       return {
         id: `session-${turnIndex}`,
         abortController: new AbortController(),
       };
     },
-    async *streamEvents(handle: SessionHandle) {
-      const turnEvents = events[turnIndex] || [
-        { type: "done" as const, success: true },
-      ];
+    async *streamEvents(_handle: SessionHandle) {
+      const turnEvents = events[turnIndex] || [{ type: "done" as const, success: true }];
       turnIndex++;
       for (const event of turnEvents) {
         yield event;
@@ -50,9 +44,7 @@ function createMockWorkspace(): WorkspaceManager {
     ensureWorkspace: vi.fn().mockResolvedValue("/tmp/test-workspace"),
     removeWorkspace: vi.fn().mockResolvedValue(undefined),
     runHook: vi.fn().mockResolvedValue(undefined),
-    writeMcpConfig: vi
-      .fn()
-      .mockResolvedValue("/tmp/test-workspace/.forge/mcp.json"),
+    writeMcpConfig: vi.fn().mockResolvedValue("/tmp/test-workspace/.forge/mcp.json"),
     toSafeId: vi.fn((id: string) => id),
   } as unknown as WorkspaceManager;
 }
@@ -93,14 +85,8 @@ describe("runWorker", () => {
     expect(result.turns).toBe(1);
     expect(result.success).toBe(true);
     expect(workspace.ensureWorkspace).toHaveBeenCalledWith(testIssue);
-    expect(workspace.runHook).toHaveBeenCalledWith(
-      "before_run",
-      "/tmp/test-workspace",
-    );
-    expect(workspace.runHook).toHaveBeenCalledWith(
-      "after_run",
-      "/tmp/test-workspace",
-    );
+    expect(workspace.runHook).toHaveBeenCalledWith("before_run", "/tmp/test-workspace");
+    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
   });
 
   it("runs multiple turns while issue stays active", async () => {
@@ -110,9 +96,7 @@ describe("runWorker", () => {
       [{ type: "done", success: true }],
     ]);
 
-    const tracker = new MemoryTracker([
-      { ...testIssue, state: "In Progress" },
-    ]);
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
 
     const workspace = createMockWorkspace();
     const turns: number[] = [];
@@ -158,9 +142,7 @@ describe("runWorker", () => {
       async stopSession() {},
     };
 
-    const tracker = new MemoryTracker([
-      { ...testIssue, state: "In Progress" },
-    ]);
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
 
     // After first turn, move issue to Done
     const origFetch = tracker.fetchIssueStatesByIds.bind(tracker);
@@ -207,9 +189,7 @@ describe("runWorker", () => {
       ],
     ]);
 
-    const tracker = new MemoryTracker([
-      { ...testIssue, state: "In Progress" },
-    ]);
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
     // Move to done after second turn
     let fetchCount = 0;
     const origFetch = tracker.fetchIssueStatesByIds.bind(tracker);
@@ -243,9 +223,7 @@ describe("runWorker", () => {
   });
 
   it("stops on agent error", async () => {
-    const agent = createMockAgent([
-      [{ type: "error", message: "Agent crashed" }],
-    ]);
+    const agent = createMockAgent([[{ type: "error", message: "Agent crashed" }]]);
 
     const tracker = new MemoryTracker([testIssue]);
     const workspace = createMockWorkspace();
@@ -268,10 +246,7 @@ describe("runWorker", () => {
     );
 
     // Should still have run after_run hook
-    expect(workspace.runHook).toHaveBeenCalledWith(
-      "after_run",
-      "/tmp/test-workspace",
-    );
+    expect(workspace.runHook).toHaveBeenCalledWith("after_run", "/tmp/test-workspace");
     expect(result.turns).toBe(1);
   });
 
@@ -299,9 +274,8 @@ describe("runWorker", () => {
       workspace,
     );
 
-    expect(workspace.writeMcpConfig).toHaveBeenCalledWith(
-      "/tmp/test-workspace",
-      { "forge-linear": { command: "node" } },
-    );
+    expect(workspace.writeMcpConfig).toHaveBeenCalledWith("/tmp/test-workspace", {
+      "forge-linear": { command: "node" },
+    });
   });
 });

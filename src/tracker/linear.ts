@@ -1,8 +1,4 @@
-import type {
-  NormalizedIssue,
-  TrackerAdapter,
-  TrackerConfig,
-} from "./types.js";
+import type { NormalizedIssue, TrackerAdapter, TrackerConfig } from "./types.js";
 
 interface GraphQLResponse<T> {
   data?: T;
@@ -43,10 +39,7 @@ export class LinearTracker implements TrackerAdapter {
     this.apiKey = apiKey || "";
   }
 
-  private async graphql<T>(
-    query: string,
-    variables?: Record<string, unknown>,
-  ): Promise<T> {
+  private async graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     if (!this.apiKey) {
       throw new Error("Linear API key is required");
     }
@@ -61,16 +54,12 @@ export class LinearTracker implements TrackerAdapter {
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Linear API error: ${response.status} ${response.statusText}`,
-      );
+      throw new Error(`Linear API error: ${response.status} ${response.statusText}`);
     }
 
     const json = (await response.json()) as GraphQLResponse<T>;
     if (json.errors?.length) {
-      throw new Error(
-        `Linear GraphQL error: ${json.errors.map((e) => e.message).join(", ")}`,
-      );
+      throw new Error(`Linear GraphQL error: ${json.errors.map((e) => e.message).join(", ")}`);
     }
     if (!json.data) {
       throw new Error("Linear API returned no data");
@@ -185,9 +174,7 @@ export class LinearTracker implements TrackerAdapter {
     return result;
   }
 
-  async fetchTerminalIssues(
-    config: TrackerConfig,
-  ): Promise<NormalizedIssue[]> {
+  async fetchTerminalIssues(config: TrackerConfig): Promise<NormalizedIssue[]> {
     if (!config.project_slug) {
       throw new Error("Linear project slug is required");
     }

@@ -16,7 +16,7 @@ export function calculateRetryDelay(
   }
 
   // Exponential backoff: base * 2^(attempt-1), capped at max
-  const delay = FAILURE_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+  const delay = FAILURE_BASE_DELAY_MS * 2 ** (attempt - 1);
   return Math.min(delay, maxDelayMs);
 }
 

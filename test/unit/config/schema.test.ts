@@ -13,11 +13,7 @@ describe("WorkflowConfigSchema", () => {
       agent: { kind: "claude", max_turns: 10 },
     });
     expect(config.tracker.kind).toBe("linear");
-    expect(config.tracker.terminal_states).toEqual([
-      "Done",
-      "Closed",
-      "Cancelled",
-    ]);
+    expect(config.tracker.terminal_states).toEqual(["Done", "Closed", "Cancelled"]);
     expect(config.agent.max_concurrent_agents).toBe(10);
     expect(config.retry.max_attempts).toBe(5);
   });

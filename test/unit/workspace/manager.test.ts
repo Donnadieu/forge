@@ -17,10 +17,7 @@ describe("WorkspaceManager", () => {
   let manager: WorkspaceManager;
 
   beforeEach(() => {
-    testRoot = join(
-      tmpdir(),
-      `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    );
+    testRoot = join(tmpdir(), `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testRoot, { recursive: true });
     manager = new WorkspaceManager({
       root: testRoot,
@@ -145,9 +142,9 @@ describe("WorkspaceManager", () => {
       });
 
       const path = await managerWithHook.ensureWorkspace("MT-400");
-      await expect(
-        managerWithHook.runHook("before_run", path),
-      ).rejects.toThrow(/Hook 'before_run' failed/);
+      await expect(managerWithHook.runHook("before_run", path)).rejects.toThrow(
+        /Hook 'before_run' failed/,
+      );
     });
 
     it("skips hooks that are not configured", async () => {
@@ -210,9 +207,7 @@ describe("WorkspaceManager", () => {
     });
 
     it("rejects path traversal attempts", async () => {
-      await expect(manager.ensureWorkspace("../../etc")).rejects.toThrow(
-        /escapes root/,
-      );
+      await expect(manager.ensureWorkspace("../../etc")).rejects.toThrow(/escapes root/);
     });
 
     it("rejects symlink escapes", async () => {
@@ -223,9 +218,7 @@ describe("WorkspaceManager", () => {
       const linkPath = join(testRoot, "escape-link");
       symlinkSync(outsideDir, linkPath);
 
-      await expect(manager.removeWorkspace(linkPath)).rejects.toThrow(
-        /Symlink escape/,
-      );
+      await expect(manager.removeWorkspace(linkPath)).rejects.toThrow(/Symlink escape/);
 
       // Cleanup
       rmSync(outsideDir, { recursive: true, force: true });

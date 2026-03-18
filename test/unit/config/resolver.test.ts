@@ -58,9 +58,7 @@ describe("resolveConfig", () => {
       },
       workspace: { root: "~/forge-workspaces" },
     });
-    expect(config.workspace.root).toBe(
-      resolve(homedir(), "forge-workspaces"),
-    );
+    expect(config.workspace.root).toBe(resolve(homedir(), "forge-workspaces"));
   });
 });
 

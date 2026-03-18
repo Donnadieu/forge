@@ -4,7 +4,12 @@ import { MemoryTracker } from "../../src/tracker/memory.js";
 import { WorkspaceManager } from "../../src/workspace/manager.js";
 import type { NormalizedIssue } from "../../src/tracker/types.js";
 import type { WorkerResult } from "../../src/worker/runner.js";
-import type { AgentAdapter, AgentEvent, SessionHandle, StartSessionParams } from "../../src/agent/types.js";
+import type {
+  AgentAdapter,
+  AgentEvent,
+  SessionHandle,
+  StartSessionParams,
+} from "../../src/agent/types.js";
 import { createMockAgent, createTestIssue } from "../support/fixtures.js";
 import { createTempDir, cleanupDir, waitFor } from "../support/test-helpers.js";
 

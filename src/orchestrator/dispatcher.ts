@@ -4,9 +4,7 @@ import type { OrchestratorState } from "./types.js";
 /**
  * Sort issues for dispatch: priority ASC (0=urgent first), then createdAt ASC (oldest first).
  */
-export function sortIssuesForDispatch(
-  issues: NormalizedIssue[],
-): NormalizedIssue[] {
+export function sortIssuesForDispatch(issues: NormalizedIssue[]): NormalizedIssue[] {
   return [...issues].sort((a, b) => {
     if (a.priority !== b.priority) return a.priority - b.priority;
     return a.createdAt.localeCompare(b.createdAt);
@@ -52,10 +50,7 @@ export function shouldDispatchIssue(
 /**
  * Check if any blocker is still in an active (non-terminal) state.
  */
-function hasActiveBlockers(
-  issue: NormalizedIssue,
-  activeStates: string[],
-): boolean {
+function hasActiveBlockers(issue: NormalizedIssue, activeStates: string[]): boolean {
   return issue.blockers.some((b) => activeStates.includes(b.state));
 }
 
@@ -75,8 +70,7 @@ export function selectIssuesToDispatch(
   const selected: NormalizedIssue[] = [];
 
   for (const issue of sorted) {
-    if (state.running.size + selected.length >= config.max_concurrent_agents)
-      break;
+    if (state.running.size + selected.length >= config.max_concurrent_agents) break;
     if (shouldDispatchIssue(issue, state, config)) {
       selected.push(issue);
     }

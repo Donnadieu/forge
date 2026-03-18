@@ -1,12 +1,5 @@
 import { execSync } from "node:child_process";
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { NormalizedIssue } from "../tracker/types.js";
 
@@ -91,10 +84,7 @@ export class WorkspaceManager {
   /**
    * Run a named lifecycle hook in the workspace directory.
    */
-  async runHook(
-    hookName: keyof WorkspaceConfig["hooks"],
-    workspacePath: string,
-  ): Promise<void> {
+  async runHook(hookName: keyof WorkspaceConfig["hooks"], workspacePath: string): Promise<void> {
     const command = this.config.hooks[hookName];
     if (!command) return;
 
@@ -150,12 +140,10 @@ export class WorkspaceManager {
     const canonicalWorkspace = resolve(workspacePath);
 
     if (canonicalWorkspace === canonicalRoot) {
-      throw new Error(
-        `Workspace path cannot be the root directory: ${canonicalWorkspace}`,
-      );
+      throw new Error(`Workspace path cannot be the root directory: ${canonicalWorkspace}`);
     }
 
-    if (!canonicalWorkspace.startsWith(canonicalRoot + "/")) {
+    if (!canonicalWorkspace.startsWith(`${canonicalRoot}/`)) {
       throw new Error(
         `Workspace path escapes root: ${canonicalWorkspace} is not under ${canonicalRoot}`,
       );
@@ -166,7 +154,7 @@ export class WorkspaceManager {
       const realPath = this.resolveSymlinks(workspacePath);
       const realRoot = this.resolveSymlinks(this.config.root);
 
-      if (!realPath.startsWith(realRoot + "/") && realPath !== realRoot) {
+      if (!realPath.startsWith(`${realRoot}/`) && realPath !== realRoot) {
         throw new Error(
           `Symlink escape detected: ${workspacePath} resolves to ${realPath} which is outside ${realRoot}`,
         );

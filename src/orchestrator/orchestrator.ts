@@ -1,23 +1,11 @@
 import type { AgentAdapter } from "../agent/types.js";
-import type {
-  TrackerAdapter,
-  TrackerConfig,
-  NormalizedIssue,
-} from "../tracker/types.js";
+import type { TrackerAdapter, TrackerConfig, NormalizedIssue } from "../tracker/types.js";
 import type { WorkspaceManager } from "../workspace/manager.js";
 import { runWorker, type WorkerConfig, type WorkerResult } from "../worker/runner.js";
-import {
-  type OrchestratorState,
-  type RunningEntry,
-  createInitialState,
-} from "./types.js";
+import { type OrchestratorState, type RunningEntry, createInitialState } from "./types.js";
 import { selectIssuesToDispatch } from "./dispatcher.js";
 import { reconcileRunningIssues } from "./reconciler.js";
-import {
-  scheduleRetry,
-  cancelRetry,
-  cancelAllRetries,
-} from "./retry-queue.js";
+import { scheduleRetry, cancelRetry, cancelAllRetries } from "./retry-queue.js";
 
 export interface OrchestratorConfig {
   pollIntervalMs: number;
@@ -36,6 +24,7 @@ export interface OrchestratorCallbacks {
   onComplete?: (issueId: string, result: WorkerResult) => void;
   onError?: (issueId: string, error: Error) => void;
   onReconcile?: (toKill: string[], toRetry: string[]) => void;
+  onPollError?: (error: Error) => void;
 }
 
 export class Orchestrator {
@@ -124,8 +113,9 @@ export class Orchestrator {
     try {
       await this.pollCycle();
     } catch (error) {
-      // Log error but don't crash the loop
-      console.error("Poll cycle error:", error);
+      // Report error but don't crash the loop
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.callbacks.onPollError?.(err);
     }
 
     // Schedule next tick
@@ -134,15 +124,11 @@ export class Orchestrator {
 
   private async pollCycle(): Promise<void> {
     // 1. Reconcile running issues
-    const reconcileResult = await reconcileRunningIssues(
-      this.state,
-      this.tracker,
-      {
-        active_states: this.config.trackerConfig.active_states,
-        terminal_states: this.config.trackerConfig.terminal_states,
-        stall_timeout_seconds: this.config.stallTimeoutSeconds,
-      },
-    );
+    const reconcileResult = await reconcileRunningIssues(this.state, this.tracker, {
+      active_states: this.config.trackerConfig.active_states,
+      terminal_states: this.config.trackerConfig.terminal_states,
+      stall_timeout_seconds: this.config.stallTimeoutSeconds,
+    });
 
     // Handle reconciliation results
     for (const issueId of reconcileResult.toKill) {
@@ -152,15 +138,10 @@ export class Orchestrator {
       this.killAndRetry(issueId, "failure", "Stalled");
     }
 
-    this.callbacks.onReconcile?.(
-      reconcileResult.toKill,
-      reconcileResult.toRetry,
-    );
+    this.callbacks.onReconcile?.(reconcileResult.toKill, reconcileResult.toRetry);
 
     // 2. Fetch candidates
-    const candidates = await this.tracker.fetchCandidates(
-      this.config.trackerConfig,
-    );
+    const candidates = await this.tracker.fetchCandidates(this.config.trackerConfig);
 
     // 3. Select and dispatch
     const toDispatch = selectIssuesToDispatch(candidates, this.state, {
@@ -188,27 +169,20 @@ export class Orchestrator {
       mcpServers: this.config.mcpServers,
     };
 
-    const workerPromise = runWorker(
-      issue,
-      workerConfig,
-      this.agent,
-      this.tracker,
-      this.workspace,
-      {
-        onEvent: (issueId, event) => {
-          const entry = this.state.running.get(issueId);
-          if (entry) {
-            entry.lastActivityAt = performance.now();
-            if (event.type === "usage") {
-              entry.tokens.input += event.inputTokens;
-              entry.tokens.output += event.outputTokens;
-              this.state.totalTokens.input += event.inputTokens;
-              this.state.totalTokens.output += event.outputTokens;
-            }
+    const workerPromise = runWorker(issue, workerConfig, this.agent, this.tracker, this.workspace, {
+      onEvent: (issueId, event) => {
+        const entry = this.state.running.get(issueId);
+        if (entry) {
+          entry.lastActivityAt = performance.now();
+          if (event.type === "usage") {
+            entry.tokens.input += event.inputTokens;
+            entry.tokens.output += event.outputTokens;
+            this.state.totalTokens.input += event.inputTokens;
+            this.state.totalTokens.output += event.outputTokens;
           }
-        },
+        }
       },
-    )
+    })
       .then((result) => {
         this.handleWorkerComplete(issue.id, result, attempt);
       })
@@ -234,11 +208,7 @@ export class Orchestrator {
     this.state.claimed.delete(issue.id);
   }
 
-  private handleWorkerComplete(
-    issueId: string,
-    result: WorkerResult,
-    _attempt: number,
-  ): void {
+  private handleWorkerComplete(issueId: string, result: WorkerResult, _attempt: number): void {
     this.state.running.delete(issueId);
     this.state.completed.add(issueId);
     this.callbacks.onComplete?.(issueId, result);
@@ -252,10 +222,7 @@ export class Orchestrator {
   ): void {
     this.state.running.delete(issueId);
     const errorMsg = error instanceof Error ? error.message : String(error);
-    this.callbacks.onError?.(
-      issueId,
-      error instanceof Error ? error : new Error(errorMsg),
-    );
+    this.callbacks.onError?.(issueId, error instanceof Error ? error : new Error(errorMsg));
 
     // Schedule retry if under max attempts
     if (attempt < this.config.maxRetryAttempts) {
@@ -273,24 +240,17 @@ export class Orchestrator {
             .fetchIssueStatesByIds([retryIssueId])
             .then((states) => {
               const state = states.get(retryIssueId);
-              if (
-                state &&
-                this.config.trackerConfig.active_states.includes(state)
-              ) {
+              if (state && this.config.trackerConfig.active_states.includes(state)) {
                 // Find the issue in our state or re-fetch
                 const entry = this.state.running.get(retryIssueId);
                 if (!entry) {
                   // Re-dispatch with incremented attempt
-                  this.tracker
-                    .fetchCandidates(this.config.trackerConfig)
-                    .then((candidates) => {
-                      const issue = candidates.find(
-                        (c) => c.id === retryIssueId,
-                      );
-                      if (issue) {
-                        this.dispatchIssue(issue, attempt + 1);
-                      }
-                    });
+                  this.tracker.fetchCandidates(this.config.trackerConfig).then((candidates) => {
+                    const issue = candidates.find((c) => c.id === retryIssueId);
+                    if (issue) {
+                      this.dispatchIssue(issue, attempt + 1);
+                    }
+                  });
                 }
               }
             })

@@ -1,11 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
-import type {
-  AgentAdapter,
-  AgentEvent,
-  SessionHandle,
-  StartSessionParams,
-} from "./types.js";
+import type { AgentAdapter, AgentEvent, SessionHandle, StartSessionParams } from "./types.js";
 
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly name = "claude";
@@ -126,16 +121,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       return { type: "done", success: !raw.is_error };
     }
 
-    if (
-      type === "system" &&
-      (raw as Record<string, unknown>).subtype === "usage"
-    ) {
+    if (type === "system" && (raw as Record<string, unknown>).subtype === "usage") {
       return {
         type: "usage",
-        inputTokens:
-          ((raw as Record<string, unknown>).input_tokens as number) || 0,
-        outputTokens:
-          ((raw as Record<string, unknown>).output_tokens as number) || 0,
+        inputTokens: ((raw as Record<string, unknown>).input_tokens as number) || 0,
+        outputTokens: ((raw as Record<string, unknown>).output_tokens as number) || 0,
       };
     }
 

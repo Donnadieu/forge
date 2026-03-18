@@ -19,7 +19,7 @@ export function cleanupDir(dir: string): void {
 export function writeWorkflowFile(
   dir: string,
   overrides: Record<string, unknown> = {},
-  promptTemplate = "Fix {{ issue.identifier }}: {{ issue.title }}"
+  promptTemplate = "Fix {{ issue.identifier }}: {{ issue.title }}",
 ): string {
   const config = {
     tracker: {
@@ -93,7 +93,7 @@ function buildYaml(obj: Record<string, unknown>, indent = 0): string {
 export async function waitFor(
   condition: () => boolean | Promise<boolean>,
   timeoutMs = 5000,
-  intervalMs = 50
+  intervalMs = 50,
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
