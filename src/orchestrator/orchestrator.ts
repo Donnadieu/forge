@@ -217,7 +217,11 @@ export class Orchestrator {
     this.state.claimed.delete(issue.id);
   }
 
-  private async handleWorkerComplete(issueId: string, result: WorkerResult, attempt: number): Promise<void> {
+  private async handleWorkerComplete(
+    issueId: string,
+    result: WorkerResult,
+    attempt: number,
+  ): Promise<void> {
     const entry = this.state.running.get(issueId);
     this.state.running.delete(issueId);
     this.callbacks.onComplete?.(issueId, result);
