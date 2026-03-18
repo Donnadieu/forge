@@ -4,6 +4,7 @@ import "dotenv/config";
 import { Command } from "commander";
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { WorkflowStore } from "./config/watcher.js";
 import { parseWorkflowFile } from "./config/loader.js";
@@ -24,6 +25,7 @@ const program = new Command()
   .option("--port <number>", "HTTP server port", parseInt)
   .option("--log-level <level>", "Log level", "info")
   .option("--dry-run", "Show what would be dispatched without spawning agents")
+  .option("--accept-risk", "Acknowledge unguarded agent execution")
   .action(async (workflowPath: string, options: Record<string, unknown>) => {
     const resolvedPath = resolve(workflowPath);
 
@@ -36,12 +38,19 @@ const program = new Command()
     const store = new WorkflowStore(resolvedPath);
     const { config, promptTemplate } = store.current();
 
-    // Set up logger
-    const logFile = options.logsRoot ? resolve(options.logsRoot as string, "forge.log") : undefined;
+    // Set up logger — when the TUI dashboard is active, redirect logs to file
+    // so the dashboard and logger don't both write to stdout.
+    const dashboardEnabled = config.observability.dashboard_enabled !== false;
+    const explicitLogFile = options.logsRoot
+      ? resolve(options.logsRoot as string, "forge.log")
+      : undefined;
+    const logFile =
+      explicitLogFile ?? (dashboardEnabled ? resolve(tmpdir(), "forge.log") : undefined);
 
     const logger = createLogger({
       level: (options.logLevel as string) ?? "info",
       logFile,
+      fileOnly: dashboardEnabled,
     });
 
     logger.info({ workflowPath: resolvedPath }, "Starting Forge");
@@ -87,6 +96,13 @@ const program = new Command()
       }
     }
 
+    if (!options.acceptRisk && !options.dryRun) {
+      logger.error(
+        "You must pass --accept-risk to acknowledge unguarded agent execution. Use --dry-run to preview without spawning agents.",
+      );
+      process.exit(1);
+    }
+
     // Create agent adapter
     const agent = createAgent(config.agent.kind, { command: config.agent.command });
 
@@ -123,6 +139,7 @@ const program = new Command()
       hooks: config.workspace.hooks,
       hookTimeoutMs: config.workspace.hooks.timeout_ms,
       skillsDir,
+      sshConfigPath: config.workspace.ssh_config_path,
     });
 
     // Clean up workspaces for terminal issues before starting
@@ -197,8 +214,38 @@ const program = new Command()
       },
     );
 
+    // HTTP Server
+    let httpServer: import("node:http").Server | undefined;
+    const port = (options.port as number | undefined) ?? config.server?.port;
+    if (port !== undefined) {
+      const { createForgeHttpServer } = await import("./server/index.js");
+      httpServer = createForgeHttpServer({
+        getSnapshot: () => orchestrator.getSnapshot(),
+        getIssueSnapshot: (id) => orchestrator.getIssueSnapshot(id),
+        triggerPoll: () => orchestrator.triggerPoll(),
+      });
+      const host = config.server?.host ?? "127.0.0.1";
+      httpServer.on("error", (err) => {
+        logger.error({ port, host, error: err.message }, "HTTP server failed to start");
+        process.exit(1);
+      });
+      httpServer.listen(port, host);
+      logger.info({ port, host }, `HTTP server listening on http://${host}:${port}`);
+    }
+
+    // TUI Dashboard
+    let dashboard: { stop(): void } | undefined;
+    if (config.observability.dashboard_enabled !== false) {
+      const { Dashboard } = await import("./observability/dashboard.js");
+      const dash = new Dashboard({ output: process.stdout });
+      dash.start(config.observability.refresh_ms, () => orchestrator.getSnapshot(), port, logFile);
+      dashboard = dash;
+    }
+
     // Graceful shutdown
     const shutdown = async () => {
+      dashboard?.stop();
+      httpServer?.close();
       logger.info("Shutting down...");
       await orchestrator.stop();
       logger.info("Forge stopped");

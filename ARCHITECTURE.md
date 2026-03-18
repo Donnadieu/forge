@@ -14,9 +14,10 @@ See [`SPEC.md`](SPEC.md) Section 3 (System Overview) for the language-agnostic d
 │  Standalone: MCP Servers                                │
 │  mcp/ — per-tracker MCP servers for agent tool access   │
 ├─────────────────────────────────────────────────────────┤
-│  Layer 3: Coordination                                  │
+│  Layer 3: Coordination + Presentation                   │
 │  orchestrator/ — polling, dispatch, reconciliation,     │
 │                  retries, state management               │
+│  server/ — HTTP REST API + HTML dashboard (optional)    │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 2: Execution                                     │
 │  worker/ — per-issue agent runner, prompt rendering     │
@@ -28,7 +29,7 @@ See [`SPEC.md`](SPEC.md) Section 3 (System Overview) for the language-agnostic d
 ├─────────────────────────────────────────────────────────┤
 │  Layer 0: Foundation                                    │
 │  config/ — schema, loader, resolver, watcher            │
-│  observability/ — Pino structured logger                │
+│  observability/ — logger, TUI dashboard, snapshot types │
 │  agent/types — AgentAdapter, SessionHandle interfaces   │
 │  tracker/types — TrackerAdapter, NormalizedIssue ifaces │
 └─────────────────────────────────────────────────────────┘
@@ -39,14 +40,15 @@ See [`SPEC.md`](SPEC.md) Section 3 (System Overview) for the language-agnostic d
 | Module | Layer | Responsibility | Allowed Dependencies |
 |--------|-------|---------------|---------------------|
 | `config/` | 0 | YAML parsing, Zod validation, env resolution | (none) |
-| `observability/` | 0 | Pino logger creation, child loggers | (none) |
+| `observability/` | 0 | Pino logger, TUI dashboard, snapshot types | (none) |
 | `agent/types.ts` | 0 | AgentAdapter, SessionHandle, AgentEvent interfaces | (none) |
 | `tracker/types.ts` | 0 | TrackerAdapter, NormalizedIssue, TrackerConfig interfaces | (none) |
-| `workspace/` | 1 | Directory creation, hooks, cleanup | `tracker/types` |
+| `workspace/` | 1 | Directory creation, hooks, cleanup, SSH remote ops | `tracker/types` |
 | `agent/` (impls) | 1 | ClaudeCodeAdapter | `agent/types` |
 | `tracker/` (impls) | 1 | LinearTracker, MemoryTracker | `tracker/types` |
 | `worker/` | 2 | Per-issue execution loop, prompt rendering | `agent/types`, `tracker/types`, `workspace` |
-| `orchestrator/` | 3 | Polling, dispatch, reconciliation, retries | `agent/types`, `tracker/types`, `workspace`, `worker` |
+| `orchestrator/` | 3 | Polling, dispatch, reconciliation, retries | `agent/types`, `tracker/types`, `workspace`, `worker`, `observability` |
+| `server/` | 3 | HTTP REST API, HTML dashboard (SPEC 13.7) | `orchestrator`, `observability` |
 | `mcp/` | standalone | MCP servers for agent tool access (Linear GraphQL) | (none) |
 | `index.ts` | 4 | CLI entry, wiring | all modules |
 

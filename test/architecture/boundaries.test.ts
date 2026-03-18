@@ -20,7 +20,8 @@ const ALLOWED_DEPS: Record<string, string[]> = {
   tracker: ["observability"], // impls may log errors via Pino
   workspace: ["tracker"],
   worker: ["agent", "tracker", "workspace"],
-  orchestrator: ["agent", "tracker", "workspace", "worker"],
+  orchestrator: ["agent", "tracker", "workspace", "worker", "observability"],
+  server: ["orchestrator", "observability"],
   mcp: [], // standalone MCP server, no cross-module deps
 };
 

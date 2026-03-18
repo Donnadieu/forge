@@ -43,8 +43,8 @@ forge validate
 # Preview what would be dispatched (requires tracker credentials)
 forge --dry-run
 
-# Start the orchestrator
-forge
+# Start the orchestrator (--accept-risk acknowledges unguarded agent execution)
+forge --accept-risk
 ```
 
 ## Architecture
@@ -55,10 +55,11 @@ Forge uses a layered, pluggable architecture with strict dependency boundaries e
 - **Tracker** — Polls issue trackers for candidate tickets. Linear adapter included; GitHub Issues and Jira planned.
 - **Orchestrator** — Tick loop that reconciles running workers, fetches candidates, checks eligibility (priority, blockers, concurrency limits), dispatches workers, and manages retries with exponential backoff.
 - **Worker** — Per-issue multi-turn agent runner. Renders prompt template, spawns agent sessions, streams events, checks tracker state between turns.
-- **Workspace** — Creates isolated per-issue directories, runs lifecycle hooks (`after_create`, `before_run`, `after_run`), copies skills, writes MCP config.
-- **Agent** — Spawns AI coding agents. Claude Code CLI adapter included; Codex and custom adapters planned.
+- **Workspace** — Creates isolated per-issue directories (local or remote via SSH), runs lifecycle hooks (`after_create`, `before_run`, `after_run`), copies skills, writes MCP config.
+- **Agent** — Spawns AI coding agents. Claude Code CLI adapter included (local or SSH); Codex and custom adapters planned.
 - **MCP** — Standalone MCP servers that give agents tool access (e.g., Linear GraphQL queries/mutations).
-- **Observability** — Pino structured logging with dual transport (console + file), in-memory metrics for tokens, durations, retries.
+- **Observability** — Pino structured logging with dual transport (console + file), in-memory metrics for tokens, durations, retries. Optional TUI dashboard for real-time session monitoring.
+- **Server** — Optional HTTP API (`GET /api/v1/state`, `GET /api/v1/{id}`, `POST /api/v1/refresh`) with an HTML dashboard for browser-based monitoring.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full layer diagram, dependency rules, and extension points.
 
@@ -69,9 +70,11 @@ WORKFLOW.md uses YAML front matter for configuration and a Liquid template body 
 | Section | Purpose |
 |---------|---------|
 | `tracker` | Issue tracker kind, project slug, active/terminal states |
-| `workspace` | Root directory, lifecycle hooks, skills directory |
+| `workspace` | Root directory, lifecycle hooks, skills directory, `ssh_config_path` for remote workers |
 | `agent` | Agent kind, concurrency limits, turn limits, polling interval |
 | `retry` | Max attempts, backoff delays |
+| `server` | HTTP API server: `port`, `host` (default `127.0.0.1`) |
+| `observability` | TUI dashboard: `dashboard_enabled`, `refresh_ms` |
 
 See [examples/WORKFLOW.md](examples/WORKFLOW.md) for a complete working example.
 

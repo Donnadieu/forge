@@ -13,6 +13,8 @@ export interface StartSessionParams {
   sessionId?: string; // for resume/continuation
   maxTurns?: number;
   approvalPolicy?: string;
+  sshHost?: string; // for remote execution via SSH
+  sshConfigPath?: string; // path to SSH config file
 }
 
 export interface SessionHandle {

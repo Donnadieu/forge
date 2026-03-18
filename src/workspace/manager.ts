@@ -8,8 +8,9 @@ import {
   realpathSync,
   rmSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, posix, resolve } from "node:path";
 import { writeMcpConfig as writeMcpConfigFile } from "./mcp-config.js";
+import { runSshCommand, shellEscape } from "./ssh.js";
 import type { NormalizedIssue } from "../tracker/types.js";
 
 export interface WorkspaceConfig {
@@ -22,6 +23,7 @@ export interface WorkspaceConfig {
   };
   hookTimeoutMs?: number;
   skillsDir?: string;
+  sshConfigPath?: string;
 }
 
 export class WorkspaceManager {
@@ -52,17 +54,21 @@ export class WorkspaceManager {
     // Ensure root exists
     mkdirSync(this.config.root, { recursive: true });
 
-    const isNew = !existsSync(workspacePath);
+    let isNew: boolean;
 
     if (existsSync(workspacePath)) {
-      // If it exists but is a file (not directory), remove and recreate
       const stat = lstatSync(workspacePath);
       if (!stat.isDirectory()) {
+        // Exists as a file — remove and recreate as directory
         rmSync(workspacePath);
         mkdirSync(workspacePath, { recursive: true });
+        isNew = true;
+      } else {
+        isNew = false;
       }
     } else {
       mkdirSync(workspacePath, { recursive: true });
+      isNew = true;
     }
 
     // Run after_create hook only on first creation
@@ -157,6 +163,102 @@ export class WorkspaceManager {
   }
 
   /**
+   * Ensure a workspace exists on a remote host for the given issue.
+   * Creates the directory via SSH, runs after_create hook on first creation.
+   */
+  async ensureRemoteWorkspace(host: string, issue: NormalizedIssue): Promise<string> {
+    const safeId = this.toSafeId(issue.identifier);
+    const wsPath = `${this.config.root}/${safeId}`;
+    this.validateRemotePath(wsPath);
+
+    // Create directory remotely
+    const sshOpts = { sshConfigPath: this.config.sshConfigPath };
+    const mkdirResult = await runSshCommand(host, `mkdir -p ${shellEscape(wsPath)}`, sshOpts);
+    if (mkdirResult.exitCode !== 0) {
+      throw new Error(`Failed to create remote workspace on ${host}: ${wsPath}`);
+    }
+
+    // Check if newly created (test for a marker file)
+    const testResult = await runSshCommand(
+      host,
+      `test -f ${shellEscape(wsPath + "/.forge-initialized")} && echo exists`,
+      sshOpts,
+    );
+    const isNew = !testResult.stdout.includes("exists");
+
+    if (isNew) {
+      // Mark as initialized
+      await runSshCommand(host, `touch ${shellEscape(wsPath + "/.forge-initialized")}`, sshOpts);
+      // Run after_create hook remotely
+      if (this.config.hooks.after_create) {
+        await this.runRemoteHook(host, "after_create", wsPath, {});
+      }
+    }
+
+    return wsPath;
+  }
+
+  /**
+   * Run a named lifecycle hook on a remote host.
+   * after_create and before_run failures are fatal (throw).
+   * Other hook failures are swallowed.
+   */
+  async runRemoteHook(
+    host: string,
+    hookName: string,
+    workspacePath: string,
+    env: Record<string, string>,
+  ): Promise<void> {
+    const script = this.config.hooks[hookName as keyof typeof this.config.hooks];
+    if (!script || typeof script !== "string") return;
+
+    const timeout = this.config.hookTimeoutMs ?? 300_000;
+
+    const envPrefix = Object.entries(env)
+      .map(([k, v]) => {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+          throw new Error(`Invalid environment variable name: ${k}`);
+        }
+        return `export ${k}=${shellEscape(v)}`;
+      })
+      .join("; ");
+
+    const fullCommand = envPrefix
+      ? `${envPrefix}; cd ${shellEscape(workspacePath)} && ${script}`
+      : `cd ${shellEscape(workspacePath)} && ${script}`;
+
+    const result = await runSshCommand(host, fullCommand, {
+      timeoutMs: timeout,
+      sshConfigPath: this.config.sshConfigPath,
+    });
+
+    // after_create and before_run failures are fatal
+    if (result.exitCode !== 0 && (hookName === "after_create" || hookName === "before_run")) {
+      throw new Error(
+        `Remote hook ${hookName} failed on ${host} with exit code ${result.exitCode}`,
+      );
+    }
+  }
+
+  /**
+   * Remove a workspace directory on a remote host.
+   * Runs before_remove hook first (failure is logged and ignored).
+   */
+  async removeRemoteWorkspace(host: string, path: string): Promise<void> {
+    this.validateRemotePath(path);
+    if (this.config.hooks.before_remove) {
+      try {
+        await this.runRemoteHook(host, "before_remove", path, {});
+      } catch {
+        // before_remove failure is ignored
+      }
+    }
+    await runSshCommand(host, `rm -rf ${shellEscape(path)}`, {
+      sshConfigPath: this.config.sshConfigPath,
+    });
+  }
+
+  /**
    * Validate that a workspace path is safe:
    * - Must be under the configured root
    * - Must not equal the root
@@ -186,6 +288,21 @@ export class WorkspaceManager {
           `Symlink escape detected: ${workspacePath} resolves to ${realPath} which is outside ${realRoot}`,
         );
       }
+    }
+  }
+
+  /**
+   * Validate that a remote workspace path is under the configured root.
+   * String-based only (no symlink check — filesystem is remote).
+   */
+  private validateRemotePath(remotePath: string): void {
+    const root = this.config.root.replace(/\/+$/, "");
+    const normalized = posix.normalize(remotePath);
+    if (normalized === root) {
+      throw new Error(`Remote workspace path cannot be the root directory: ${normalized}`);
+    }
+    if (!normalized.startsWith(`${root}/`)) {
+      throw new Error(`Remote workspace path escapes root: ${normalized} is not under ${root}`);
     }
   }
 

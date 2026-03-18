@@ -11,6 +11,11 @@ export interface RunningEntry {
   attempt: number;
   abortController: AbortController;
   workerPromise: Promise<void>;
+  sessionId: string | null;
+  turnCount: number;
+  lastEvent: string;
+  lastMessage: string;
+  host: string | null;
 }
 
 export interface RetryEntry {
@@ -30,6 +35,7 @@ export interface OrchestratorState {
   retryAttempts: Map<string, RetryEntry>;
   totalTokens: { input: number; output: number };
   tickTimerId: ReturnType<typeof setTimeout> | null;
+  secondsRunning: number;
 }
 
 export function createInitialState(): OrchestratorState {
@@ -40,5 +46,6 @@ export function createInitialState(): OrchestratorState {
     retryAttempts: new Map(),
     totalTokens: { input: 0, output: 0 },
     tickTimerId: null,
+    secondsRunning: 0,
   };
 }
