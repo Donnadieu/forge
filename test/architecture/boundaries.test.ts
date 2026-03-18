@@ -21,6 +21,7 @@ const ALLOWED_DEPS: Record<string, string[]> = {
   workspace: ["tracker"],
   worker: ["agent", "tracker", "workspace"],
   orchestrator: ["agent", "tracker", "workspace", "worker"],
+  mcp: [], // standalone MCP server, no cross-module deps
 };
 
 function collectTsFiles(dir: string): string[] {
