@@ -125,6 +125,22 @@ const program = new Command()
       skillsDir,
     });
 
+    // Clean up workspaces for terminal issues before starting
+    try {
+      const terminalIssues = await tracker.fetchTerminalIssues(trackerConfig);
+      for (const issue of terminalIssues) {
+        const safeId = workspace.toSafeId(issue.identifier);
+        const wsPath = resolve(config.workspace.root, safeId);
+        if (existsSync(wsPath)) {
+          logger.info({ identifier: issue.identifier, path: wsPath }, "Cleaning up terminal workspace");
+          await workspace.removeWorkspace(wsPath);
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.warn({ error: msg }, "Terminal workspace cleanup failed — continuing");
+    }
+
     // Create and start orchestrator
     const orchestrator = new Orchestrator(
       tracker,

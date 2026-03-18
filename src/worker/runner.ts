@@ -148,12 +148,19 @@ export async function runWorker(
       }
 
       // Check if ticket is still in active state
-      const currentStates = await tracker.fetchIssueStatesByIds([issue.id]);
-      const currentState = currentStates.get(issue.id);
+      try {
+        const currentStates = await tracker.fetchIssueStatesByIds([issue.id]);
+        const currentState = currentStates.get(issue.id);
 
-      if (!currentState || !config.trackerConfig.active_states.includes(currentState)) {
-        // Ticket moved out of active state
-        break;
+        // Only break on confirmed non-active state.
+        // If the map has no entry (e.g. transient API failure), continue working.
+        if (currentState !== undefined &&
+            !config.trackerConfig.active_states.includes(currentState)) {
+          break;
+        }
+      } catch {
+        // State check failed — continue working.
+        // The reconciler will catch persistent state changes on the next tick.
       }
     }
   } finally {

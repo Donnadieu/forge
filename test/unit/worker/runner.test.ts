@@ -325,6 +325,94 @@ describe("runWorker", () => {
     );
   });
 
+  it("continues when fetchIssueStatesByIds returns empty map (transient API failure)", async () => {
+    let turnCount = 0;
+    const agent: AgentAdapter = {
+      name: "mock",
+      async startSession() {
+        return { id: `s-${turnCount}`, abortController: new AbortController() };
+      },
+      async *streamEvents() {
+        turnCount++;
+        yield { type: "done" as const, success: true };
+      },
+      async stopSession() {},
+    };
+
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
+
+    let fetchCount = 0;
+    tracker.fetchIssueStatesByIds = async (_ids: string[]) => {
+      fetchCount++;
+      if (fetchCount === 1) return new Map();
+      return new Map([["issue-1", "Done"]]);
+    };
+
+    const workspace = createMockWorkspace();
+    const result = await runWorker(
+      testIssue,
+      {
+        maxTurns: 10,
+        promptTemplate: "Work",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["In Progress"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    expect(result.turns).toBe(2);
+  });
+
+  it("continues when fetchIssueStatesByIds throws (network error)", async () => {
+    let turnCount = 0;
+    const agent: AgentAdapter = {
+      name: "mock",
+      async startSession() {
+        return { id: `s-${turnCount}`, abortController: new AbortController() };
+      },
+      async *streamEvents() {
+        turnCount++;
+        yield { type: "done" as const, success: true };
+      },
+      async stopSession() {},
+    };
+
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
+
+    let fetchCount = 0;
+    tracker.fetchIssueStatesByIds = async (_ids: string[]) => {
+      fetchCount++;
+      if (fetchCount === 1) throw new Error("Network timeout");
+      return new Map([["issue-1", "Done"]]);
+    };
+
+    const workspace = createMockWorkspace();
+    const result = await runWorker(
+      testIssue,
+      {
+        maxTurns: 10,
+        promptTemplate: "Work",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["In Progress"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    expect(result.turns).toBe(2);
+  });
+
   it("stops turn when read timeout fires", async () => {
     // Create an agent that yields events very slowly
     const stopSpy = vi.fn();

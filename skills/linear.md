@@ -160,6 +160,87 @@ mutation FileUpload($filename: String!, $contentType: String!, $size: Int!) {
 }
 ```
 
+## Lifecycle Workflow
+
+Use these workflows in order when working on a Forge issue.
+
+### Step 1: Claim Issue (move to In Progress)
+
+```graphql
+# First, get the team workflow states
+query IssueTeamStates($id: String!) {
+  issue(id: $id) {
+    id
+    team {
+      states { nodes { id name type } }
+    }
+  }
+}
+
+# Then update (use the stateId for "In Progress")
+mutation MoveIssueToState($id: String!, $stateId: String!) {
+  issueUpdate(id: $id, input: { stateId: $stateId }) {
+    success
+    issue { id state { name } }
+  }
+}
+```
+
+### Step 2: Create Workpad Comment
+
+Post a progress comment immediately after claiming:
+
+```graphql
+mutation CreateWorkpad($issueId: String!, $body: String!) {
+  commentCreate(input: { issueId: $issueId, body: $body }) {
+    success
+    comment { id url }
+  }
+}
+```
+
+Save the returned `comment.id` — you will update this comment as you work.
+
+Example body:
+```
+**Forge Agent Progress**
+- [x] Claimed issue
+- [ ] Implementation
+- [ ] Tests
+- [ ] PR created
+- [ ] Ready for review
+```
+
+### Step 3: Update Workpad
+
+Use the saved comment ID to update progress:
+
+```graphql
+mutation UpdateWorkpad($id: String!, $body: String!) {
+  commentUpdate(id: $id, input: { body: $body }) {
+    success
+  }
+}
+```
+
+### Step 4: Move to Review or Blocked
+
+When complete, move to "Human Review". When stuck, move to "Blocked". Use the same `issueUpdate` mutation from Step 1 with the appropriate `stateId`.
+
+### Step 5: Post Summary Comment
+
+When moving to review, create a summary comment (separate from the workpad):
+
+```graphql
+mutation PostSummary($issueId: String!, $body: String!) {
+  commentCreate(input: { issueId: $issueId, body: $body }) {
+    success
+  }
+}
+```
+
+Include: what changed, test results, PR link, any notes for reviewer.
+
 ## Usage Rules
 
 - Prefer the narrowest issue lookup: key -> identifier search -> internal id.

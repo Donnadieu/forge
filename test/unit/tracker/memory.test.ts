@@ -185,6 +185,33 @@ describe("MemoryTracker", () => {
     });
   });
 
+  describe("createComment", () => {
+    it("creates a comment and returns its ID", async () => {
+      const tracker = new MemoryTracker([makeIssue({ id: "1" })]);
+      const commentId = await tracker.createComment("1", "Hello world");
+      expect(commentId).toBeDefined();
+      expect(typeof commentId).toBe("string");
+    });
+
+    it("stores comments retrievable via getComments", async () => {
+      const tracker = new MemoryTracker([makeIssue({ id: "1" })]);
+      await tracker.createComment("1", "First comment");
+      await tracker.createComment("1", "Second comment");
+
+      const comments = tracker.getComments("1");
+      expect(comments).toHaveLength(2);
+      expect(comments[0].body).toBe("First comment");
+      expect(comments[1].body).toBe("Second comment");
+    });
+
+    it("returns unique IDs per comment", async () => {
+      const tracker = new MemoryTracker([makeIssue({ id: "1" })]);
+      const id1 = await tracker.createComment("1", "A");
+      const id2 = await tracker.createComment("1", "B");
+      expect(id1).not.toBe(id2);
+    });
+  });
+
   describe("getIssue", () => {
     it("returns the issue if it exists", () => {
       const issue = makeIssue({ id: "x" });

@@ -29,4 +29,8 @@ export interface TrackerAdapter {
   fetchCandidates(config: TrackerConfig): Promise<NormalizedIssue[]>;
   fetchIssueStatesByIds(ids: string[]): Promise<Map<string, string>>;
   fetchTerminalIssues(config: TrackerConfig): Promise<NormalizedIssue[]>;
+  /** Transition an issue to a named workflow state. Optional — not all trackers support writes. */
+  updateIssueState?(issueId: string, stateName: string): Promise<void>;
+  /** Create a comment on an issue. Returns the comment ID. Optional. */
+  createComment?(issueId: string, body: string): Promise<string>;
 }
