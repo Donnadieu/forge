@@ -29,6 +29,7 @@ export interface OrchestratorConfig {
   trackerConfig: TrackerConfig;
   promptTemplate: string;
   mcpServers?: Record<string, unknown>;
+  skillsManifest?: string;
 }
 
 export interface OrchestratorCallbacks {
@@ -186,6 +187,7 @@ export class Orchestrator {
       promptTemplate: this.config.promptTemplate,
       trackerConfig: this.config.trackerConfig,
       mcpServers: this.config.mcpServers,
+      skillsManifest: this.config.skillsManifest,
     };
 
     const workerPromise = runWorker(

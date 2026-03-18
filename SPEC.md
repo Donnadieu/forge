@@ -1,3 +1,5 @@
+> This spec is inherited from OpenAI Symphony. Forge extends it with model-agnostic agent adapters and tracker-agnostic integrations.
+
 # Symphony Service Specification
 
 Status: Draft v1 (language-agnostic)
