@@ -5,6 +5,11 @@ import type { AgentAdapter, AgentEvent, SessionHandle, StartSessionParams } from
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly name = "claude";
   private processes = new Map<string, ChildProcess>();
+  private command: string;
+
+  constructor(options?: { command?: string }) {
+    this.command = options?.command || "claude";
+  }
 
   async startSession(params: StartSessionParams): Promise<SessionHandle> {
     const args = ["-p", "--output-format", "stream-json", "--verbose"];
@@ -23,7 +28,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
     const abortController = new AbortController();
 
-    const child = spawn("claude", args, {
+    const child = spawn(this.command, args, {
       cwd: params.workspacePath,
       stdio: ["pipe", "pipe", "pipe"],
       signal: abortController.signal,

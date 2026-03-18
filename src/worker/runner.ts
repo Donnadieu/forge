@@ -6,6 +6,8 @@ import { renderPrompt, buildPromptContext } from "./prompt-renderer.js";
 export interface WorkerConfig {
   maxTurns: number;
   turnTimeoutMs?: number;
+  readTimeoutMs?: number;
+  approvalPolicy?: string;
   promptTemplate: string;
   trackerConfig: TrackerConfig;
   mcpServers?: Record<string, unknown>;
@@ -80,13 +82,30 @@ export async function runWorker(
         workspacePath,
         mcpConfigPath,
         sessionId,
+        approvalPolicy: config.approvalPolicy,
       });
 
       sessionId = handle.id;
 
-      // Stream events
+      // Stream events with optional read timeout
       let turnSuccess = true;
+      let readTimer: ReturnType<typeof setTimeout> | undefined;
+      let readTimedOut = false;
+
+      const resetReadTimer = () => {
+        if (readTimer) clearTimeout(readTimer);
+        if (config.readTimeoutMs) {
+          readTimer = setTimeout(() => {
+            readTimedOut = true;
+            handle.abortController.abort();
+          }, config.readTimeoutMs);
+        }
+      };
+
+      resetReadTimer();
+
       for await (const event of agent.streamEvents(handle)) {
+        resetReadTimer();
         callbacks?.onEvent?.(issue.id, event);
 
         if (event.type === "usage") {
@@ -105,8 +124,10 @@ export async function runWorker(
         }
       }
 
+      if (readTimer) clearTimeout(readTimer);
+
       if (turnTimer) clearTimeout(turnTimer);
-      if (turnTimedOut) {
+      if (turnTimedOut || readTimedOut) {
         await agent.stopSession(handle);
         lastTurnSuccess = false;
         break;

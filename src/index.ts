@@ -87,7 +87,7 @@ const program = new Command()
     }
 
     // Create agent adapter
-    const agent = createAgent(config.agent.kind);
+    const agent = createAgent(config.agent.kind, { command: config.agent.command });
 
     // Resolve skills directory relative to workflow file
     const workflowDir = dirname(resolvedPath);
@@ -130,13 +130,16 @@ const program = new Command()
       agent,
       workspace,
       {
-        pollIntervalMs: config.agent.poll_interval_seconds * 1000,
+        pollIntervalMs: config.polling.interval_ms,
         maxConcurrentAgents: config.agent.max_concurrent_agents,
         maxTurns: config.agent.max_turns,
         turnTimeoutMs: config.agent.turn_timeout_ms,
+        readTimeoutMs: config.agent.read_timeout_ms,
+        approvalPolicy: config.agent.approval_policy,
         stallTimeoutSeconds: config.agent.stall_timeout_seconds,
         maxRetryAttempts: config.retry.max_attempts,
-        maxRetryDelayMs: config.retry.max_delay_seconds * 1000,
+        maxRetryDelayMs: config.agent.max_retry_backoff_ms,
+        retryBaseDelayMs: config.retry.base_delay_seconds * 1000,
         trackerConfig,
         promptTemplate,
         mcpServers,

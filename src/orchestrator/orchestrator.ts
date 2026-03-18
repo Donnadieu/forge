@@ -12,9 +12,12 @@ export interface OrchestratorConfig {
   maxConcurrentAgents: number;
   maxTurns: number;
   turnTimeoutMs?: number;
+  readTimeoutMs?: number;
+  approvalPolicy?: string;
   stallTimeoutSeconds: number;
   maxRetryAttempts: number;
   maxRetryDelayMs: number;
+  retryBaseDelayMs?: number;
   trackerConfig: TrackerConfig;
   promptTemplate: string;
   mcpServers?: Record<string, unknown>;
@@ -167,6 +170,8 @@ export class Orchestrator {
     const workerConfig: WorkerConfig = {
       maxTurns: this.config.maxTurns,
       turnTimeoutMs: this.config.turnTimeoutMs,
+      readTimeoutMs: this.config.readTimeoutMs,
+      approvalPolicy: this.config.approvalPolicy,
       promptTemplate: this.config.promptTemplate,
       trackerConfig: this.config.trackerConfig,
       mcpServers: this.config.mcpServers,
@@ -237,6 +242,7 @@ export class Orchestrator {
               (retryId) => {
                 this.dispatchIssue(issue, attempt + 1);
               },
+              this.config.retryBaseDelayMs,
             );
             return;
           }
@@ -292,6 +298,7 @@ export class Orchestrator {
               // Retry failed, give up
             });
         },
+        this.config.retryBaseDelayMs,
       );
     }
   }
@@ -339,6 +346,7 @@ export class Orchestrator {
             })
             .catch(() => {});
         },
+        this.config.retryBaseDelayMs,
       );
     }
   }

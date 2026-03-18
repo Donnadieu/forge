@@ -27,14 +27,20 @@ export const WorkflowConfigSchema = z.object({
   agent: z
     .object({
       kind: z.enum(["claude", "codex", "custom"]).default("claude"),
+      command: z.string().optional(),
       max_concurrent_agents: z.number().default(10),
       max_concurrent_agents_by_state: z.record(z.string(), z.number()).default({}),
       max_turns: z.number().default(20),
       turn_timeout_ms: z.number().default(3_600_000),
       read_timeout_ms: z.number().default(5_000),
-      poll_interval_seconds: z.number().default(30),
       stall_timeout_seconds: z.number().default(300),
       approval_policy: z.string().default("on-request"),
+      max_retry_backoff_ms: z.number().default(300_000),
+    })
+    .default({}),
+  polling: z
+    .object({
+      interval_ms: z.number().default(30_000),
     })
     .default({}),
   retry: z

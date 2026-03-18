@@ -28,7 +28,7 @@ describe("WorkflowConfigSchema", () => {
     });
     expect(config.workspace.root).toBe("~/forge-workspaces");
     expect(config.agent.kind).toBe("claude");
-    expect(config.agent.poll_interval_seconds).toBe(30);
+    expect(config.polling.interval_ms).toBe(30_000);
     expect(config.retry.base_delay_seconds).toBe(10);
   });
 
@@ -167,5 +167,68 @@ describe("WorkflowConfigSchema", () => {
     });
     expect(config.tracker.endpoint).toBe("https://api.linear.app/graphql");
     expect(config.tracker.api_key).toBe("lin_api_test123");
+  });
+
+  it("applies default polling.interval_ms", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+    });
+    expect(config.polling.interval_ms).toBe(30_000);
+  });
+
+  it("accepts custom polling.interval_ms", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+      polling: { interval_ms: 5_000 },
+    });
+    expect(config.polling.interval_ms).toBe(5_000);
+  });
+
+  it("accepts agent.command as optional string", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+      agent: { command: "custom-claude" },
+    });
+    expect(config.agent.command).toBe("custom-claude");
+  });
+
+  it("agent.command defaults to undefined", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+    });
+    expect(config.agent.command).toBeUndefined();
+  });
+
+  it("applies default agent.max_retry_backoff_ms", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+    });
+    expect(config.agent.max_retry_backoff_ms).toBe(300_000);
+  });
+
+  it("accepts custom agent.max_retry_backoff_ms", () => {
+    const config = WorkflowConfigSchema.parse({
+      tracker: {
+        kind: "linear",
+        project_slug: "test",
+      },
+      agent: { max_retry_backoff_ms: 600_000 },
+    });
+    expect(config.agent.max_retry_backoff_ms).toBe(600_000);
   });
 });

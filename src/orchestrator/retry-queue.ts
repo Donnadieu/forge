@@ -1,7 +1,7 @@
 import type { OrchestratorState } from "./types.js";
 
 const CONTINUATION_DELAY_MS = 1_000; // 1 second for normal continuation
-const FAILURE_BASE_DELAY_MS = 10_000; // 10 seconds base for failures
+const DEFAULT_FAILURE_BASE_DELAY_MS = 10_000; // 10 seconds base for failures
 
 /**
  * Calculate retry delay based on attempt number and delay type.
@@ -10,13 +10,15 @@ export function calculateRetryDelay(
   attempt: number,
   delayType: "continuation" | "failure",
   maxDelayMs: number,
+  baseDelayMs?: number,
 ): number {
   if (delayType === "continuation") {
     return CONTINUATION_DELAY_MS;
   }
 
   // Exponential backoff: base * 2^(attempt-1), capped at max
-  const delay = FAILURE_BASE_DELAY_MS * 2 ** (attempt - 1);
+  const base = baseDelayMs ?? DEFAULT_FAILURE_BASE_DELAY_MS;
+  const delay = base * 2 ** (attempt - 1);
   return Math.min(delay, maxDelayMs);
 }
 
@@ -32,11 +34,12 @@ export function scheduleRetry(
   error: string | null,
   maxDelayMs: number,
   onRetry: (issueId: string) => void,
+  baseDelayMs?: number,
 ): void {
   // Cancel existing retry if any
   cancelRetry(state, issueId);
 
-  const delay = calculateRetryDelay(attempt, delayType, maxDelayMs);
+  const delay = calculateRetryDelay(attempt, delayType, maxDelayMs, baseDelayMs);
 
   const timerId = setTimeout(() => {
     state.retryAttempts.delete(issueId);
