@@ -22,6 +22,7 @@ export const WorkflowConfigSchema = z.object({
         })
         .default({}),
       skills_dir: z.string().optional(),
+      ssh_config_path: z.string().optional(),
     })
     .default({}),
   agent: z
@@ -48,6 +49,18 @@ export const WorkflowConfigSchema = z.object({
       max_attempts: z.number().default(5),
       base_delay_seconds: z.number().default(10),
       max_delay_seconds: z.number().default(300),
+    })
+    .default({}),
+  server: z
+    .object({
+      port: z.number().int().optional(),
+      host: z.string().default("127.0.0.1"),
+    })
+    .default({}),
+  observability: z
+    .object({
+      dashboard_enabled: z.boolean().default(true),
+      refresh_ms: z.number().default(1000),
     })
     .default({}),
 });

@@ -581,8 +581,15 @@ This section is intentionally redundant so a coding agent can implement the conf
 - `codex.turn_timeout_ms`: integer, default `3600000`
 - `codex.read_timeout_ms`: integer, default `5000`
 - `codex.stall_timeout_ms`: integer, default `300000`
+- `workspace.ssh_config_path` (extension): string, optional; path to SSH config file for remote
+  worker execution; passed to `ssh -F` when spawning agents on SSH hosts
 - `server.port` (extension): integer, optional; enables the optional HTTP server, `0` may be used
   for ephemeral local bind, and CLI `--port` overrides it
+- `server.host` (extension): string, default `127.0.0.1`; bind address for the optional HTTP server
+- `observability.dashboard_enabled` (extension): boolean, default `true`; enables the TUI status
+  dashboard when running interactively
+- `observability.refresh_ms` (extension): integer, default `1000`; refresh interval in milliseconds
+  for the TUI dashboard
 
 ## 7. Orchestration State Machine
 
@@ -2055,6 +2062,8 @@ Unless otherwise noted, Sections 17.1 through 17.7 are `Core Conformance`. Bulle
 - CLI accepts an optional positional workflow path argument (`path-to-WORKFLOW.md`)
 - CLI uses `./WORKFLOW.md` when no workflow path argument is provided
 - CLI errors on nonexistent explicit workflow path or missing default `./WORKFLOW.md`
+- CLI requires `--accept-risk` flag (or `--dry-run`) to start the orchestrator; exits nonzero with
+  an operator-visible error if neither is provided, guarding against unintentional agent execution
 - CLI surfaces startup failure cleanly
 - CLI exits with success when application starts and shuts down normally
 - CLI exits nonzero when startup fails or the host process exits abnormally

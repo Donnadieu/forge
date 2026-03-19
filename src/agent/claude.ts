@@ -28,10 +28,25 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
     const abortController = new AbortController();
 
-    const child = spawn(this.command, args, {
-      cwd: params.workspacePath,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    let child: ChildProcess;
+
+    if (params.sshHost) {
+      const sshSpawn = this.buildSshSpawn(
+        params.sshHost,
+        params.workspacePath,
+        this.command,
+        args,
+        params.sshConfigPath,
+      );
+      child = spawn(sshSpawn.command, sshSpawn.args, {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } else {
+      child = spawn(this.command, args, {
+        cwd: params.workspacePath,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    }
 
     // Handle abort by killing the process instead of using signal option
     // (signal option throws unhandled AbortError)
@@ -43,8 +58,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     child.on("error", () => {});
 
     // CRITICAL: Pipe prompt via stdin, never as positional arg (avoids ENAMETOOLONG)
-    child.stdin.write(params.prompt);
-    child.stdin.end();
+    child.stdin!.write(params.prompt);
+    child.stdin!.end();
 
     const id = params.sessionId || `session-${child.pid}-${Date.now()}`;
     this.processes.set(id, child);
@@ -104,6 +119,36 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       });
     }
     this.processes.delete(handle.id);
+  }
+
+  /**
+   * Build the command and args to spawn an SSH process that runs the agent remotely.
+   * Inlined here to avoid cross-module imports (agent has no cross-module deps).
+   */
+  private buildSshSpawn(
+    host: string,
+    workspacePath: string,
+    command: string,
+    args: string[],
+    sshConfigPath?: string,
+  ): { command: string; args: string[] } {
+    const sshArgs = ["-T"];
+
+    if (sshConfigPath) sshArgs.push("-F", sshConfigPath);
+
+    const colonIdx = host.lastIndexOf(":");
+    if (colonIdx > 0 && /^\d+$/.test(host.slice(colonIdx + 1))) {
+      sshArgs.push("-p", host.slice(colonIdx + 1));
+      sshArgs.push(host.slice(0, colonIdx));
+    } else {
+      sshArgs.push(host);
+    }
+
+    const esc = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+    const escapedArgs = [command, ...args].map(esc).join(" ");
+    sshArgs.push(`bash -lc ${esc(`cd ${esc(workspacePath)} && ${escapedArgs}`)}`);
+
+    return { command: "ssh", args: sshArgs };
   }
 
   private mapEvent(raw: Record<string, unknown>): AgentEvent | AgentEvent[] | null {

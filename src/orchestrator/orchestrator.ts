@@ -1,11 +1,13 @@
 import type { AgentAdapter } from "../agent/types.js";
 import type { TrackerAdapter, TrackerConfig, NormalizedIssue } from "../tracker/types.js";
 import type { WorkspaceManager } from "../workspace/manager.js";
+import type { StateSnapshot, RunningSessionSnapshot } from "../observability/types.js";
 import { runWorker, type WorkerConfig, type WorkerResult } from "../worker/runner.js";
 import { type OrchestratorState, type RunningEntry, createInitialState } from "./types.js";
 import { selectIssuesToDispatch } from "./dispatcher.js";
 import { reconcileRunningIssues } from "./reconciler.js";
 import { scheduleRetry, cancelRetry, cancelAllRetries } from "./retry-queue.js";
+import { buildStateSnapshot, buildIssueSnapshot } from "./snapshot.js";
 
 export interface OrchestratorConfig {
   pollIntervalMs: number;
@@ -41,6 +43,8 @@ export class Orchestrator {
   private config: OrchestratorConfig;
   private callbacks: OrchestratorCallbacks;
   private stopped = false;
+  private tickRunning = false;
+  private pollRequested = false;
 
   constructor(
     tracker: TrackerAdapter,
@@ -57,53 +61,51 @@ export class Orchestrator {
     this.callbacks = callbacks;
   }
 
-  /**
-   * Start the orchestrator tick loop.
-   */
   start(): void {
     this.stopped = false;
     this.scheduleTick(0);
   }
 
-  /**
-   * Stop the orchestrator, terminating all running workers.
-   */
   async stop(): Promise<void> {
     this.stopped = true;
-
-    // Cancel tick timer
     if (this.state.tickTimerId) {
       clearTimeout(this.state.tickTimerId);
       this.state.tickTimerId = null;
     }
-
-    // Cancel all retries
     cancelAllRetries(this.state);
-
-    // Abort all running workers
-    for (const [, entry] of this.state.running) {
-      entry.abortController.abort();
-    }
-
-    // Wait for all workers to finish
+    for (const [, entry] of this.state.running) entry.abortController.abort();
     const promises = Array.from(this.state.running.values()).map((e) =>
       e.workerPromise.catch(() => {}),
     );
     await Promise.allSettled(promises);
-
     this.state.running.clear();
   }
 
-  /**
-   * Get current orchestrator state (for observability).
-   */
   getState(): Readonly<OrchestratorState> {
     return this.state;
   }
 
-  /**
-   * Update config (for hot-reload).
-   */
+  getSnapshot(): StateSnapshot {
+    return buildStateSnapshot(this.state);
+  }
+
+  getIssueSnapshot(identifier: string): RunningSessionSnapshot | null {
+    return buildIssueSnapshot(this.state, identifier);
+  }
+
+  triggerPoll(): void {
+    if (this.stopped) return;
+    if (this.tickRunning) {
+      this.pollRequested = true;
+      return;
+    }
+    if (this.state.tickTimerId) {
+      clearTimeout(this.state.tickTimerId);
+      this.state.tickTimerId = null;
+    }
+    this.scheduleTick(0);
+  }
+
   updateConfig(config: Partial<OrchestratorConfig>): void {
     this.config = { ...this.config, ...config };
   }
@@ -115,6 +117,8 @@ export class Orchestrator {
 
   private async onTick(): Promise<void> {
     if (this.stopped) return;
+    this.tickRunning = true;
+    this.pollRequested = false;
 
     try {
       await this.pollCycle();
@@ -124,8 +128,15 @@ export class Orchestrator {
       this.callbacks.onPollError?.(err);
     }
 
-    // Schedule next tick
-    this.scheduleTick(this.config.pollIntervalMs);
+    this.tickRunning = false;
+
+    // If a poll was requested while we were running, do it immediately
+    if (this.pollRequested) {
+      this.pollRequested = false;
+      this.scheduleTick(0);
+    } else {
+      this.scheduleTick(this.config.pollIntervalMs);
+    }
   }
 
   private async pollCycle(): Promise<void> {
@@ -194,18 +205,30 @@ export class Orchestrator {
     };
 
     const workerPromise = runWorker(issue, workerConfig, this.agent, this.tracker, this.workspace, {
+      signal: abortController.signal,
       onEvent: (issueId, event) => {
         const entry = this.state.running.get(issueId);
         if (entry) {
           entry.lastActivityAt = performance.now();
+          entry.lastEvent = event.type;
           if (event.type === "usage") {
             entry.tokens.input += event.inputTokens;
             entry.tokens.output += event.outputTokens;
             this.state.totalTokens.input += event.inputTokens;
             this.state.totalTokens.output += event.outputTokens;
+          } else if (event.type === "text") {
+            entry.lastMessage = event.content.slice(0, 200);
+          } else if (event.type === "tool_use") {
+            entry.lastMessage = event.tool;
           }
         }
         this.callbacks.onEvent?.(issueId, event);
+      },
+      onTurnStart: (issueId, turn) => {
+        const entry = this.state.running.get(issueId);
+        if (entry) {
+          entry.turnCount = turn;
+        }
       },
     })
       .then((result) => {
@@ -227,6 +250,11 @@ export class Orchestrator {
       attempt,
       abortController,
       workerPromise,
+      sessionId: null,
+      turnCount: 0,
+      lastEvent: "",
+      lastMessage: "",
+      host: null,
     };
 
     this.state.running.set(issue.id, entry);
@@ -239,6 +267,9 @@ export class Orchestrator {
     attempt: number,
   ): Promise<void> {
     const entry = this.state.running.get(issueId);
+    if (entry) {
+      this.state.secondsRunning += (performance.now() - entry.startedAt) / 1000;
+    }
     this.state.running.delete(issueId);
     this.callbacks.onComplete?.(issueId, result);
 
@@ -260,7 +291,10 @@ export class Orchestrator {
               null,
               this.config.maxRetryDelayMs,
               (_retryId) => {
-                this.dispatchIssue(issue, attempt + 1);
+                this.dispatchIssue(issue, attempt + 1).catch((err) => {
+                  const e = err instanceof Error ? err : new Error(String(err));
+                  this.callbacks.onError?.(issueId, e);
+                });
               },
               this.config.retryBaseDelayMs,
             );
@@ -281,11 +315,14 @@ export class Orchestrator {
     error: unknown,
     attempt: number,
   ): void {
+    const errorEntry = this.state.running.get(issueId);
+    if (errorEntry) {
+      this.state.secondsRunning += (performance.now() - errorEntry.startedAt) / 1000;
+    }
     this.state.running.delete(issueId);
     const errorMsg = error instanceof Error ? error.message : String(error);
     this.callbacks.onError?.(issueId, error instanceof Error ? error : new Error(errorMsg));
 
-    // Schedule retry if under max attempts
     if (attempt < this.config.maxRetryAttempts) {
       scheduleRetry(
         this.state,
@@ -295,30 +332,7 @@ export class Orchestrator {
         "failure",
         errorMsg,
         this.config.maxRetryDelayMs,
-        (retryIssueId) => {
-          // Re-fetch issue for retry
-          this.tracker
-            .fetchIssueStatesByIds([retryIssueId])
-            .then((states) => {
-              const state = states.get(retryIssueId);
-              if (state && this.config.trackerConfig.active_states.includes(state)) {
-                // Find the issue in our state or re-fetch
-                const entry = this.state.running.get(retryIssueId);
-                if (!entry) {
-                  // Re-dispatch with incremented attempt
-                  this.tracker.fetchCandidates(this.config.trackerConfig).then((candidates) => {
-                    const issue = candidates.find((c) => c.id === retryIssueId);
-                    if (issue) {
-                      this.dispatchIssue(issue, attempt + 1);
-                    }
-                  });
-                }
-              }
-            })
-            .catch(() => {
-              // Retry failed, give up
-            });
-        },
+        (retryIssueId) => this.refetchAndDispatch(retryIssueId, attempt + 1, true),
         this.config.retryBaseDelayMs,
       );
     }
@@ -327,6 +341,7 @@ export class Orchestrator {
   private killWorker(issueId: string): void {
     const entry = this.state.running.get(issueId);
     if (entry) {
+      this.state.secondsRunning += (performance.now() - entry.startedAt) / 1000;
       entry.abortController.abort();
       if (entry.workspacePath) {
         this.workspace.removeWorkspace(entry.workspacePath).catch(() => {});
@@ -343,10 +358,7 @@ export class Orchestrator {
   ): void {
     const entry = this.state.running.get(issueId);
     if (!entry) return;
-
-    const attempt = entry.attempt;
-    const identifier = entry.identifier;
-
+    const { attempt, identifier } = entry;
     this.killWorker(issueId);
 
     if (attempt < this.config.maxRetryAttempts) {
@@ -358,17 +370,28 @@ export class Orchestrator {
         delayType,
         error,
         this.config.maxRetryDelayMs,
-        (retryIssueId) => {
-          this.tracker
-            .fetchCandidates(this.config.trackerConfig)
-            .then((candidates) => {
-              const issue = candidates.find((c) => c.id === retryIssueId);
-              if (issue) this.dispatchIssue(issue, attempt + 1);
-            })
-            .catch(() => {});
-        },
+        (retryIssueId) => this.refetchAndDispatch(retryIssueId, attempt + 1, false),
         this.config.retryBaseDelayMs,
       );
     }
+  }
+
+  /** Re-fetch an issue from the tracker and dispatch it for retry. */
+  private refetchAndDispatch(issueId: string, attempt: number, checkState: boolean): void {
+    const go = async () => {
+      if (checkState) {
+        const states = await this.tracker.fetchIssueStatesByIds([issueId]);
+        const state = states.get(issueId);
+        if (!state || !this.config.trackerConfig.active_states.includes(state)) return;
+        if (this.state.running.has(issueId)) return;
+      }
+      const candidates = await this.tracker.fetchCandidates(this.config.trackerConfig);
+      const issue = candidates.find((c) => c.id === issueId);
+      if (issue) await this.dispatchIssue(issue, attempt);
+    };
+    go().catch((err) => {
+      const e = err instanceof Error ? err : new Error(String(err));
+      this.callbacks.onError?.(issueId, e);
+    });
   }
 }

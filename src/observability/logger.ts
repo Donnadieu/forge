@@ -6,12 +6,25 @@ export interface LoggerOptions {
   level?: string;
   logFile?: string;
   pretty?: boolean;
+  /** When true, write only to logFile (no stdout). Requires logFile. */
+  fileOnly?: boolean;
 }
 
 export function createLogger(opts: LoggerOptions = {}): Logger {
   const level = opts.level ?? "info";
 
   if (opts.logFile) {
+    if (opts.fileOnly) {
+      // File only — no stdout (used when TUI dashboard owns the terminal)
+      return pino({
+        level,
+        transport: {
+          target: "pino/file",
+          level: "debug",
+          options: { destination: opts.logFile, mkdir: true },
+        },
+      });
+    }
     // Write structured JSON to file, pretty to console
     return pino({
       level,
