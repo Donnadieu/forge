@@ -96,7 +96,13 @@ export async function runWorker(
       const prompt =
         turnNumber === 1
           ? renderPrompt(config.promptTemplate, buildPromptContext(issue, 1, config.skillsManifest))
-          : `Continue working on ${issue.identifier}. This is turn ${turnNumber} of ${config.maxTurns}.`;
+          : `Continuation guidance:
+
+- The previous turn completed normally, but the Linear issue is still in an active state.
+- This is continuation turn #${turnNumber} of ${config.maxTurns} for the current agent run.
+- Resume from the current workspace and workpad state instead of restarting from scratch.
+- The original task instructions and prior turn context are already present in this thread, so do not restate them before acting.
+- Focus on the remaining ticket work and do not end the turn while the issue stays active unless you are truly blocked.`;
 
       // Spawn agent turn
       const handle = await agent.startSession({

@@ -36,10 +36,18 @@ description: Land a PR by monitoring conflicts, resolving them, waiting for chec
 10. **Context guard:** Before implementing review feedback, confirm it does not
     conflict with the task context. If it conflicts, respond inline with a
     justification.
-11. **Per-comment mode:** For each review comment, choose one of: accept,
-    clarify, or push back. Reply inline stating the mode before changing code.
-12. **Reply before change:** Always respond with intended action before pushing
-    code changes.
+11. **Pushback template:** When disagreeing with review feedback, reply inline
+    with: acknowledge + rationale + offer alternative.
+12. **Ambiguity gate:** When ambiguity blocks progress, use the clarification
+    flow (assign PR to current GH user, mention them, wait for response). Do not
+    implement until ambiguity is resolved.
+    - If you are confident you know better than the reviewer, you may proceed
+      without asking the user, but reply inline with your rationale.
+13. **Per-comment mode:** For each review comment, choose one of: accept,
+    clarify, or push back. Reply inline (or in the issue thread for review
+    comments) stating the mode before changing code.
+14. **Reply before change:** Always respond with intended action before pushing
+    code changes (inline for review comments, issue thread for review comments).
 
 ## Commands
 
