@@ -173,6 +173,54 @@ describe("Orchestrator", () => {
     await orchestrator.stop();
   });
 
+  it("schedules continuation retry after successful completion", async () => {
+    vi.useFakeTimers();
+    const issue = makeIssue({ state: "Todo" });
+    const tracker = new MemoryTracker([issue]);
+    const agent = createMockAgent();
+    const workspace = createMockWorkspace();
+    const completed: string[] = [];
+    const dispatched: string[] = [];
+
+    const orchestrator = new Orchestrator(
+      tracker,
+      agent,
+      workspace,
+      {
+        pollIntervalMs: 100_000,
+        maxConcurrentAgents: 5,
+        maxTurns: 1,
+        stallTimeoutSeconds: 300,
+        maxRetryAttempts: 3,
+        maxRetryDelayMs: 300_000,
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["Todo"],
+          terminal_states: ["Done"],
+        },
+        promptTemplate: "Fix it",
+      },
+      {
+        onDispatch: (issue) => dispatched.push(issue.id),
+        onComplete: (id) => completed.push(id),
+      },
+    );
+
+    orchestrator.start();
+    // First tick dispatches the issue, mock agent completes immediately
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(dispatched).toContain("id-1");
+    expect(completed).toContain("id-1");
+
+    // Continuation delay is 1000ms; advance past it + allow async resolution
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(dispatched.filter((id) => id === "id-1").length).toBeGreaterThanOrEqual(2);
+
+    await orchestrator.stop();
+  });
+
   it("stops cleanly", async () => {
     const tracker = new MemoryTracker();
     const agent = createMockAgent();

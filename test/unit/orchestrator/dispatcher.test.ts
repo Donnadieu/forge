@@ -88,10 +88,10 @@ describe("shouldDispatchIssue", () => {
     expect(shouldDispatchIssue(makeIssue(), state, config)).toBe(false);
   });
 
-  it("rejects completed issue", () => {
+  it("allows dispatch for completed issue (observability only)", () => {
     const state = createInitialState();
     state.completed.add("id-1");
-    expect(shouldDispatchIssue(makeIssue(), state, config)).toBe(false);
+    expect(shouldDispatchIssue(makeIssue(), state, config)).toBe(true);
   });
 
   it("rejects issue with pending retry", () => {
