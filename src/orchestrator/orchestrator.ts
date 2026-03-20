@@ -204,40 +204,7 @@ export class Orchestrator {
       skillsManifest: this.config.skillsManifest,
     };
 
-    const workerPromise = runWorker(issue, workerConfig, this.agent, this.tracker, this.workspace, {
-      signal: abortController.signal,
-      onEvent: (issueId, event) => {
-        const entry = this.state.running.get(issueId);
-        if (entry) {
-          entry.lastActivityAt = performance.now();
-          entry.lastEvent = event.type;
-          if (event.type === "usage") {
-            entry.tokens.input += event.inputTokens;
-            entry.tokens.output += event.outputTokens;
-            this.state.totalTokens.input += event.inputTokens;
-            this.state.totalTokens.output += event.outputTokens;
-          } else if (event.type === "text") {
-            entry.lastMessage = event.content.slice(0, 200);
-          } else if (event.type === "tool_use") {
-            entry.lastMessage = event.tool;
-          }
-        }
-        this.callbacks.onEvent?.(issueId, event);
-      },
-      onTurnStart: (issueId, turn) => {
-        const entry = this.state.running.get(issueId);
-        if (entry) {
-          entry.turnCount = turn;
-        }
-      },
-    })
-      .then((result) => {
-        this.handleWorkerComplete(issue.id, result, attempt);
-      })
-      .catch((error) => {
-        this.handleWorkerError(issue.id, issue.identifier, error, attempt);
-      });
-
+    // Register entry BEFORE starting worker so onEvent can find it immediately
     const now = performance.now();
     const entry: RunningEntry = {
       issueId: issue.id,
@@ -249,16 +216,52 @@ export class Orchestrator {
       workspacePath: null,
       attempt,
       abortController,
-      workerPromise,
+      workerPromise: Promise.resolve(), // placeholder until worker starts
       sessionId: null,
       turnCount: 0,
       lastEvent: "",
       lastMessage: "",
       host: null,
     };
-
     this.state.running.set(issue.id, entry);
     this.state.claimed.delete(issue.id);
+
+    entry.workerPromise = runWorker(issue, workerConfig, this.agent, this.tracker, this.workspace, {
+      signal: abortController.signal,
+      onEvent: (issueId, event) => {
+        // Always accumulate global totals regardless of entry lookup
+        if (event.type === "usage") {
+          this.state.totalTokens.input += event.inputTokens;
+          this.state.totalTokens.output += event.outputTokens;
+        }
+        const runEntry = this.state.running.get(issueId);
+        if (runEntry) {
+          runEntry.lastActivityAt = performance.now();
+          runEntry.lastEvent = event.type;
+          if (event.type === "usage") {
+            runEntry.tokens.input += event.inputTokens;
+            runEntry.tokens.output += event.outputTokens;
+          } else if (event.type === "text") {
+            runEntry.lastMessage = event.content.slice(0, 200);
+          } else if (event.type === "tool_use") {
+            runEntry.lastMessage = event.tool;
+          }
+        }
+        this.callbacks.onEvent?.(issueId, event);
+      },
+      onTurnStart: (issueId, turn) => {
+        const runEntry = this.state.running.get(issueId);
+        if (runEntry) {
+          runEntry.turnCount = turn;
+        }
+      },
+    })
+      .then((result) => {
+        this.handleWorkerComplete(issue.id, result, attempt);
+      })
+      .catch((error) => {
+        this.handleWorkerError(issue.id, issue.identifier, error, attempt);
+      });
   }
 
   private handleWorkerComplete(issueId: string, result: WorkerResult, attempt: number): void {
