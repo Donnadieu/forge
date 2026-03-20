@@ -19,14 +19,22 @@ import { validateRequiredEnv } from "./config/env-validator.js";
 
 const program = new Command()
   .name("forge")
-  .description("Forge — Model-agnostic agent orchestration platform")
+  .description(
+    "Model-agnostic agent orchestration platform.\n\n" +
+      "Polls issue trackers for candidate tickets and dispatches AI coding\n" +
+      "agents to work on them autonomously in isolated workspaces.\n\n" +
+      "Quick start:\n" +
+      "  forge validate              Validate WORKFLOW.md config\n" +
+      "  forge --dry-run             Preview candidates without spawning agents\n" +
+      "  forge --accept-risk         Start the orchestrator",
+  )
   .version("0.1.0")
-  .argument("[workflow]", "Path to WORKFLOW.md", "WORKFLOW.md")
-  .option("--logs-root <path>", "Directory for log files")
-  .option("--port <number>", "HTTP server port", parseInt)
-  .option("--log-level <level>", "Log level", "info")
-  .option("--dry-run", "Show what would be dispatched without spawning agents")
-  .option("--accept-risk", "Acknowledge unguarded agent execution")
+  .argument("[workflow]", "Path to WORKFLOW.md (default: ./WORKFLOW.md)", "WORKFLOW.md")
+  .option("--logs-root <path>", "Directory for log files (default: system tmpdir)")
+  .option("--port <number>", "HTTP server port (enables REST API and web dashboard)", parseInt)
+  .option("--log-level <level>", "Log level: debug, info, warn, error (default: info)", "info")
+  .option("--dry-run", "Fetch candidates and show what would be dispatched, then exit")
+  .option("--accept-risk", "Required to start — acknowledges unguarded agent execution")
   .action(async (workflowPath: string, options: Record<string, unknown>) => {
     const resolvedPath = resolve(workflowPath);
 
@@ -271,7 +279,7 @@ const program = new Command()
 
 program
   .command("validate [workflow]")
-  .description("Parse and validate WORKFLOW.md, report errors, then exit")
+  .description("Parse and validate WORKFLOW.md without connecting to any tracker")
   .action((workflowPath = "WORKFLOW.md") => {
     const resolvedPath = resolve(workflowPath);
 
