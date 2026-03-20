@@ -40,8 +40,8 @@ export function shouldDispatchIssue(
   // Not in active state
   if (!config.active_states.includes(issue.state)) return false;
 
-  // Check if blocked by non-terminal issues
-  if (hasNonTerminalBlockers(issue, config.terminal_states)) return false;
+  // Check if blocked by non-terminal issues (only for Todo issues, per Symphony)
+  if (hasNonTerminalBlockers(issue, config.terminal_states, issue.state)) return false;
 
   // Check concurrency limit
   if (state.running.size >= config.max_concurrent_agents) return false;
@@ -62,7 +62,13 @@ export function shouldDispatchIssue(
 /**
  * Check if any blocker is still in a non-terminal state.
  */
-function hasNonTerminalBlockers(issue: NormalizedIssue, terminalStates: string[]): boolean {
+function hasNonTerminalBlockers(
+  issue: NormalizedIssue,
+  terminalStates: string[],
+  issueState: string,
+): boolean {
+  // Symphony only blocks Todo issues; non-Todo issues with blockers are allowed to proceed
+  if (issueState.trim().toLowerCase() !== "todo") return false;
   return issue.blockedBy.some(
     (b) => b.state != null && b.state !== "" && !terminalStates.includes(b.state),
   );

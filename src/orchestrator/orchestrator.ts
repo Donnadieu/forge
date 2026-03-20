@@ -367,6 +367,8 @@ export class Orchestrator {
         if (!state || !this.config.trackerConfig.active_states.includes(state)) return;
         if (this.state.running.has(issueId)) return;
       }
+      // Check slot availability before retry dispatch (Symphony behavior)
+      if (this.state.running.size >= this.config.maxConcurrentAgents) return;
       const candidates = await this.tracker.fetchCandidates(this.config.trackerConfig);
       const issue = candidates.find((c) => c.id === issueId);
       if (issue) await this.dispatchIssue(issue, attempt);

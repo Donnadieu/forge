@@ -38,10 +38,20 @@ export class LinearTracker implements TrackerAdapter {
   readonly kind = "linear";
   private endpoint: string;
   private apiKey: string;
+  private viewerId: string | null = null;
 
   constructor(endpoint?: string, apiKey?: string) {
     this.endpoint = endpoint || "https://api.linear.app/graphql";
     this.apiKey = apiKey || "";
+  }
+
+  private async resolveAssignee(assignee: string): Promise<string> {
+    if (assignee.trim().toLowerCase() !== "me") return assignee;
+    if (this.viewerId) return this.viewerId;
+
+    const data = await this.graphql<{ viewer: { id: string } }>(`query { viewer { id } }`);
+    this.viewerId = data.viewer.id;
+    return this.viewerId;
   }
 
   private async graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
@@ -150,7 +160,8 @@ export class LinearTracker implements TrackerAdapter {
 
       // Apply assignee filter if configured
       if (config.assignee) {
-        return allIssues.filter((i) => i.assignee === config.assignee);
+        const resolvedAssignee = await this.resolveAssignee(config.assignee);
+        return allIssues.filter((i) => i.assignee === resolvedAssignee);
       }
 
       return allIssues;
@@ -165,24 +176,28 @@ export class LinearTracker implements TrackerAdapter {
     if (ids.length === 0) return new Map();
 
     try {
-      const query = `
-        query FetchIssueStates($ids: [ID!]!, $first: Int!) {
-          issues(filter: { id: { in: $ids } }, first: $first) {
-            nodes {
-              id
-              state { name }
+      const result = new Map<string, string>();
+      // Batch in groups of 50 (Symphony behavior)
+      for (let i = 0; i < ids.length; i += 50) {
+        const batchIds = ids.slice(i, i + 50);
+        const query = `
+          query FetchIssueStates($ids: [ID!]!, $first: Int!) {
+            issues(filter: { id: { in: $ids } }, first: $first) {
+              nodes {
+                id
+                state { name }
+              }
             }
           }
+        `;
+
+        const data = await this.graphql<{
+          issues: { nodes: Array<{ id: string; state: { name: string } }> };
+        }>(query, { ids: batchIds, first: batchIds.length });
+
+        for (const node of data.issues.nodes) {
+          result.set(node.id, node.state.name);
         }
-      `;
-
-      const data = await this.graphql<{
-        issues: { nodes: Array<{ id: string; state: { name: string } }> };
-      }>(query, { ids, first: ids.length });
-
-      const result = new Map<string, string>();
-      for (const node of data.issues.nodes) {
-        result.set(node.id, node.state.name);
       }
       return result;
     } catch (error) {

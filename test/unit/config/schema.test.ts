@@ -13,7 +13,13 @@ describe("WorkflowConfigSchema", () => {
       agent: { kind: "claude", max_turns: 10 },
     });
     expect(config.tracker.kind).toBe("linear");
-    expect(config.tracker.terminal_states).toEqual(["Done", "Closed", "Cancelled"]);
+    expect(config.tracker.terminal_states).toEqual([
+      "Done",
+      "Closed",
+      "Cancelled",
+      "Canceled",
+      "Duplicate",
+    ]);
     expect(config.agent.max_concurrent_agents).toBe(10);
     expect(config.retry.max_attempts).toBe(5);
   });
@@ -138,7 +144,7 @@ describe("WorkflowConfigSchema", () => {
         project_slug: "test",
       },
     });
-    expect(config.tracker.active_states).toEqual(["Todo", "In Progress"]);
+    expect(config.tracker.active_states).toEqual(["Todo", "In Progress", "Rework"]);
   });
 
   it("accepts turn_timeout_ms and read_timeout_ms in agent config", () => {

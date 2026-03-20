@@ -6,8 +6,10 @@ export const WorkflowConfigSchema = z.object({
     project_slug: z.string(),
     endpoint: z.string().optional(),
     api_key: z.string().optional(),
-    active_states: z.array(z.string()).default(["Todo", "In Progress"]),
-    terminal_states: z.array(z.string()).default(["Done", "Closed", "Cancelled"]),
+    active_states: z.array(z.string()).default(["Todo", "In Progress", "Rework"]),
+    terminal_states: z
+      .array(z.string())
+      .default(["Done", "Closed", "Cancelled", "Canceled", "Duplicate"]),
   }),
   workspace: z
     .object({
