@@ -231,6 +231,105 @@ describe("runWorker", () => {
     expect(result.tokens.output).toBe(150);
   });
 
+  it("passes sessionId to startSession on turn 2+", async () => {
+    const startSessionSpy = vi.fn().mockImplementation((_params) => ({
+      id: `session-${Date.now()}`,
+      abortController: new AbortController(),
+    }));
+
+    const agent: AgentAdapter = {
+      name: "mock",
+      startSession: startSessionSpy,
+      async *streamEvents() {
+        yield { type: "done" as const, success: true };
+      },
+      async stopSession() {},
+    };
+
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
+    let fetchCount = 0;
+    const origFetch = tracker.fetchIssueStatesByIds.bind(tracker);
+    tracker.fetchIssueStatesByIds = async (ids: string[]) => {
+      fetchCount++;
+      if (fetchCount >= 2) tracker.updateIssueState("issue-1", "Done");
+      return origFetch(ids);
+    };
+
+    const workspace = createMockWorkspace();
+
+    await runWorker(
+      testIssue,
+      {
+        maxTurns: 3,
+        promptTemplate: "Fix {{ issue.identifier }}",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["Todo", "In Progress"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    // Turn 1: no sessionId
+    expect(startSessionSpy.mock.calls[0][0].sessionId).toBeUndefined();
+    // Turn 2: truthy sessionId (triggers --continue)
+    expect(startSessionSpy.mock.calls[1][0].sessionId).toBeTruthy();
+  });
+
+  it("uses continuation prompt on turn 2+", async () => {
+    const startSessionSpy = vi.fn().mockImplementation((_params) => ({
+      id: `session-${Date.now()}`,
+      abortController: new AbortController(),
+    }));
+
+    const agent: AgentAdapter = {
+      name: "mock",
+      startSession: startSessionSpy,
+      async *streamEvents() {
+        yield { type: "done" as const, success: true };
+      },
+      async stopSession() {},
+    };
+
+    const tracker = new MemoryTracker([{ ...testIssue, state: "In Progress" }]);
+    let fetchCount = 0;
+    const origFetch = tracker.fetchIssueStatesByIds.bind(tracker);
+    tracker.fetchIssueStatesByIds = async (ids: string[]) => {
+      fetchCount++;
+      if (fetchCount >= 2) tracker.updateIssueState("issue-1", "Done");
+      return origFetch(ids);
+    };
+
+    const workspace = createMockWorkspace();
+
+    await runWorker(
+      testIssue,
+      {
+        maxTurns: 3,
+        promptTemplate: "Fix {{ issue.identifier }}",
+        trackerConfig: {
+          kind: "memory",
+          project_slug: "test",
+          active_states: ["Todo", "In Progress"],
+          terminal_states: ["Done"],
+        },
+      },
+      agent,
+      tracker,
+      workspace,
+    );
+
+    // Turn 1: full rendered prompt
+    expect(startSessionSpy.mock.calls[0][0].prompt).toContain("Fix MT-42");
+    // Turn 2: continuation guidance, not full template
+    expect(startSessionSpy.mock.calls[1][0].prompt).toContain("Continuation guidance");
+    expect(startSessionSpy.mock.calls[1][0].prompt).not.toContain("Fix MT-42");
+  });
+
   it("stops on agent error", async () => {
     const agent = createMockAgent([[{ type: "error", message: "Agent crashed" }]]);
 

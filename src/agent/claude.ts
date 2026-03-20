@@ -5,6 +5,7 @@ import type { AgentAdapter, AgentEvent, SessionHandle, StartSessionParams } from
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly name = "claude";
   private processes = new Map<string, ChildProcess>();
+  private lastReportedUsage = new Map<string, { input: number; output: number }>();
   private command: string;
 
   constructor(options?: { command?: string }) {
@@ -19,7 +20,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     }
 
     if (params.sessionId) {
-      args.push("--resume", params.sessionId);
+      args.push("--continue");
     }
 
     if (params.approvalPolicy === "bypassPermissions") {
@@ -63,6 +64,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
     const id = params.sessionId || `session-${child.pid}-${Date.now()}`;
     this.processes.set(id, child);
+    this.lastReportedUsage.set(id, { input: 0, output: 0 });
 
     return { id, pid: child.pid, abortController };
   }
@@ -75,6 +77,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     }
 
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    let resultReceived = false;
 
     try {
       for await (const line of rl) {
@@ -84,9 +87,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           const mapped = this.mapEvent(raw);
           if (mapped) {
             if (Array.isArray(mapped)) {
-              for (const event of mapped) yield event;
+              for (const event of mapped) {
+                if (event.type === "done") resultReceived = true;
+                yield this.deduplicateUsage(handle.id, event);
+              }
             } else {
-              yield mapped;
+              if (mapped.type === "done") resultReceived = true;
+              yield this.deduplicateUsage(handle.id, mapped);
             }
           }
         } catch {
@@ -97,9 +104,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       rl.close();
     }
 
-    // Yield final done event based on exit code
-    const exitCode = await this.waitForExit(child);
-    yield { type: "done", success: exitCode === 0 };
+    // Only yield fallback done if no result event was received.
+    // Default to success: true — Claude can exit non-zero for reasons unrelated to task failure.
+    if (!resultReceived) {
+      await this.waitForExit(child);
+      yield { type: "done", success: true };
+    }
   }
 
   async stopSession(handle: SessionHandle): Promise<void> {
@@ -119,6 +129,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       });
     }
     this.processes.delete(handle.id);
+    this.lastReportedUsage.delete(handle.id);
   }
 
   /**
@@ -192,7 +203,19 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           }
         }
 
-        // Skip assistant.message.usage — system usage events are canonical
+        // assistant.message.usage is the canonical per-API-call source in Claude Code
+        const usage = message.usage as Record<string, number> | undefined;
+        if (usage) {
+          events.push({
+            type: "usage",
+            inputTokens:
+              (usage.input_tokens || 0) +
+              (usage.cache_read_input_tokens || 0) +
+              (usage.cache_creation_input_tokens || 0),
+            outputTokens: usage.output_tokens || 0,
+          });
+        }
+
         return events.length > 0 ? events : null;
       }
     }
@@ -205,17 +228,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       };
     }
 
-    // System usage events: { type: "system", subtype: "usage", input_tokens: N, output_tokens: N }
+    // Skip system usage — already counted from assistant.message.usage
     if (type === "system" && subtype === "usage") {
-      return {
-        type: "usage",
-        inputTokens: (raw.input_tokens as number) || 0,
-        outputTokens: (raw.output_tokens as number) || 0,
-      };
+      return null;
     }
 
     if (type === "result") {
-      // Don't emit usage from result — system usage events are canonical
+      // Skip result.usage — already counted from assistant.message.usage
       return { type: "done", success: !raw.is_error };
     }
 
@@ -225,6 +244,31 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     }
 
     return null;
+  }
+
+  /**
+   * Deduplicate usage events using Symphony's delta approach.
+   * Claude Code emits multiple assistant batch events with identical usage
+   * for the same API call. Track last-seen totals and only emit the delta.
+   */
+  private deduplicateUsage(sessionId: string, event: AgentEvent): AgentEvent {
+    if (event.type !== "usage") return event;
+
+    const last = this.lastReportedUsage.get(sessionId) ?? { input: 0, output: 0 };
+    const reportedInput = event.inputTokens;
+    const reportedOutput = event.outputTokens;
+
+    const deltaInput = Math.max(0, reportedInput - last.input);
+    const deltaOutput = Math.max(0, reportedOutput - last.output);
+
+    if (reportedInput >= last.input) {
+      this.lastReportedUsage.set(sessionId, { input: reportedInput, output: reportedOutput });
+    }
+
+    if (deltaInput === 0 && deltaOutput === 0)
+      return { type: "usage", inputTokens: 0, outputTokens: 0 };
+
+    return { type: "usage", inputTokens: deltaInput, outputTokens: deltaOutput };
   }
 
   private waitForExit(child: ChildProcess): Promise<number | null> {

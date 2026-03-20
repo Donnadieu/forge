@@ -81,6 +81,7 @@ export async function runWorker(
     // 4. Multi-turn loop
     while (turnNumber < config.maxTurns && !aborted) {
       turnNumber++;
+
       callbacks?.onTurnStart?.(issue.id, turnNumber);
 
       // Turn timeout
@@ -155,6 +156,7 @@ export async function runWorker(
 
         if (event.type === "done") {
           turnSuccess = event.success;
+
           break;
         }
       }
@@ -180,18 +182,13 @@ export async function runWorker(
         const currentStates = await tracker.fetchIssueStatesByIds([issue.id]);
         const currentState = currentStates.get(issue.id);
 
-        // Only break on confirmed non-active state.
-        // If the map has no entry (e.g. transient API failure), continue working.
         if (
           currentState !== undefined &&
           !config.trackerConfig.active_states.includes(currentState)
         ) {
           break;
         }
-      } catch {
-        // State check failed — continue working.
-        // The reconciler will catch persistent state changes on the next tick.
-      }
+      } catch {}
     }
   } finally {
     // 5. Run after_run hook — catch to avoid masking the worker result

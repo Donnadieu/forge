@@ -127,7 +127,7 @@ describe("ClaudeCodeAdapter", () => {
     );
   });
 
-  it("includes --resume when sessionId provided", async () => {
+  it("includes --continue when sessionId provided", async () => {
     const mockProc = createMockProcess([]);
     vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
 
@@ -139,9 +139,23 @@ describe("ClaudeCodeAdapter", () => {
 
     expect(child_process.spawn).toHaveBeenCalledWith(
       "claude",
-      ["-p", "--output-format", "stream-json", "--verbose", "--resume", "prev-session-123"],
+      ["-p", "--output-format", "stream-json", "--verbose", "--continue"],
       expect.anything(),
     );
+  });
+
+  it("does not include --continue or --resume on turn 1", async () => {
+    const mockProc = createMockProcess([]);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    await adapter.startSession({
+      prompt: "Start fresh",
+      workspacePath: "/tmp/ws",
+    });
+
+    const spawnArgs = vi.mocked(child_process.spawn).mock.calls[0][1] as string[];
+    expect(spawnArgs).not.toContain("--continue");
+    expect(spawnArgs).not.toContain("--resume");
   });
 
   it("uses sessionId as handle id when provided", async () => {
@@ -261,7 +275,47 @@ describe("ClaudeCodeAdapter", () => {
     });
   });
 
-  it("streams usage events", async () => {
+  it("extracts usage from assistant batch message.usage with deduplication", async () => {
+    const events = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [{ type: "text", text: "Hello" }],
+          usage: { input_tokens: 100, cache_read_input_tokens: 50, output_tokens: 25 },
+        },
+      }),
+      // Duplicate — same usage, should produce zero delta
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [{ type: "text", text: "World" }],
+          usage: { input_tokens: 100, cache_read_input_tokens: 50, output_tokens: 25 },
+        },
+      }),
+    ];
+    const mockProc = createMockProcess(events);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    const handle = await adapter.startSession({
+      prompt: "Count tokens",
+      workspacePath: "/tmp/ws",
+    });
+
+    const collected: AgentEvent[] = [];
+    for await (const event of adapter.streamEvents(handle)) {
+      collected.push(event);
+    }
+
+    const usageEvents = collected.filter((e) => e.type === "usage" && e.inputTokens > 0);
+    expect(usageEvents).toHaveLength(1);
+    expect(usageEvents[0]).toEqual({
+      type: "usage",
+      inputTokens: 150,
+      outputTokens: 25,
+    });
+  });
+
+  it("skips system usage events to avoid double counting", async () => {
     const events = [
       JSON.stringify({
         type: "system",
@@ -283,11 +337,8 @@ describe("ClaudeCodeAdapter", () => {
       collected.push(event);
     }
 
-    expect(collected).toContainEqual({
-      type: "usage",
-      inputTokens: 100,
-      outputTokens: 50,
-    });
+    const usageEvents = collected.filter((e) => e.type === "usage" && e.inputTokens > 0);
+    expect(usageEvents).toHaveLength(0);
   });
 
   it("streams error events", async () => {
@@ -366,6 +417,54 @@ describe("ClaudeCodeAdapter", () => {
     const usageEvents = collected.filter((e) => e.type === "usage");
     expect(usageEvents).toHaveLength(0);
     expect(collected).toContainEqual({ type: "done", success: true });
+  });
+
+  it("suppresses waitForExit done when result event received", async () => {
+    const events = [
+      JSON.stringify({
+        type: "result",
+        result: "Task complete",
+        is_error: false,
+        session_id: "abc-123",
+      }),
+    ];
+    const mockProc = createMockProcess(events);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    const handle = await adapter.startSession({
+      prompt: "Do something",
+      workspacePath: "/tmp/ws",
+    });
+
+    const collected: AgentEvent[] = [];
+    for await (const event of adapter.streamEvents(handle)) {
+      collected.push(event);
+    }
+
+    const doneEvents = collected.filter((e) => e.type === "done");
+    expect(doneEvents).toHaveLength(1);
+    expect(doneEvents[0]).toEqual({ type: "done", success: true });
+  });
+
+  it("defaults to success true when no result event", async () => {
+    // Only text events, no result event — fallback done should be success: true
+    const events = [JSON.stringify({ type: "assistant", subtype: "text", text: "Working..." })];
+    const mockProc = createMockProcess(events);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    const handle = await adapter.startSession({
+      prompt: "Do something",
+      workspacePath: "/tmp/ws",
+    });
+
+    const collected: AgentEvent[] = [];
+    for await (const event of adapter.streamEvents(handle)) {
+      collected.push(event);
+    }
+
+    const doneEvents = collected.filter((e) => e.type === "done");
+    expect(doneEvents).toHaveLength(1);
+    expect(doneEvents[0]).toEqual({ type: "done", success: true });
   });
 
   it("skips non-JSON lines gracefully", async () => {

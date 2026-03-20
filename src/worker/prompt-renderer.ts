@@ -15,6 +15,7 @@ export interface PromptContext {
     state: string;
     priority: number | null;
     labels: string[];
+    url: string;
     assignee?: string;
     blockedBy: Array<{ id?: string; identifier?: string; state?: string }>;
   };
@@ -40,6 +41,7 @@ export function buildPromptContext(
       state: issue.state,
       priority: issue.priority,
       labels: issue.labels,
+      url: issue.url ?? "",
       assignee: issue.assignee ?? "",
       blockedBy: issue.blockedBy.map((b) => ({
         id: b.id,
