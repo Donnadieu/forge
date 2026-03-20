@@ -192,18 +192,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           }
         }
 
-        const usage = message.usage as Record<string, number> | undefined;
-        if (usage) {
-          events.push({
-            type: "usage",
-            inputTokens:
-              (usage.input_tokens || 0) +
-              (usage.cache_read_input_tokens || 0) +
-              (usage.cache_creation_input_tokens || 0),
-            outputTokens: usage.output_tokens || 0,
-          });
-        }
-
+        // Skip assistant.message.usage — system usage events are canonical
         return events.length > 0 ? events : null;
       }
     }
@@ -226,20 +215,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     }
 
     if (type === "result") {
-      const events: AgentEvent[] = [];
-      const usage = raw.usage as Record<string, number> | undefined;
-      if (usage) {
-        events.push({
-          type: "usage",
-          inputTokens:
-            (usage.input_tokens || 0) +
-            (usage.cache_read_input_tokens || 0) +
-            (usage.cache_creation_input_tokens || 0),
-          outputTokens: usage.output_tokens || 0,
-        });
-      }
-      events.push({ type: "done", success: !raw.is_error });
-      return events;
+      // Don't emit usage from result — system usage events are canonical
+      return { type: "done", success: !raw.is_error };
     }
 
     if (type === "error") {

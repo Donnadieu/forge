@@ -341,6 +341,33 @@ describe("ClaudeCodeAdapter", () => {
     expect(collected).toContainEqual({ type: "done", success: true });
   });
 
+  it("does not emit usage from result events to avoid double-counting", async () => {
+    const events = [
+      JSON.stringify({
+        type: "result",
+        result: "Task complete",
+        is_error: false,
+        usage: { input_tokens: 500, output_tokens: 200 },
+      }),
+    ];
+    const mockProc = createMockProcess(events);
+    vi.mocked(child_process.spawn).mockReturnValue(mockProc as any);
+
+    const handle = await adapter.startSession({
+      prompt: "Do something",
+      workspacePath: "/tmp/ws",
+    });
+
+    const collected: AgentEvent[] = [];
+    for await (const event of adapter.streamEvents(handle)) {
+      collected.push(event);
+    }
+
+    const usageEvents = collected.filter((e) => e.type === "usage");
+    expect(usageEvents).toHaveLength(0);
+    expect(collected).toContainEqual({ type: "done", success: true });
+  });
+
   it("skips non-JSON lines gracefully", async () => {
     const events = [
       "Starting claude...",
