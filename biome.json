@@ -32,5 +32,17 @@
   },
   "files": {
     "includes": ["src/**/*.ts", "test/**/*.ts"]
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["test/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ]
 }

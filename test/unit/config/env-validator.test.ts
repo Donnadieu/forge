@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { validateRequiredEnv } from "../../../src/config/env-validator.js";
 import type { WorkflowConfig } from "../../../src/config/schema.js";
 
@@ -56,7 +56,14 @@ describe("validateRequiredEnv", () => {
 
   it("does not require LINEAR_API_KEY for non-linear trackers", () => {
     delete process.env.LINEAR_API_KEY;
-    const config = makeConfig({ tracker: { kind: "github" as "linear", project_slug: "test", active_states: ["Todo"], terminal_states: ["Done"] } });
+    const config = makeConfig({
+      tracker: {
+        kind: "github" as "linear",
+        project_slug: "test",
+        active_states: ["Todo"],
+        terminal_states: ["Done"],
+      },
+    });
     expect(() => validateRequiredEnv(config)).not.toThrow();
   });
 
@@ -72,7 +79,9 @@ describe("validateRequiredEnv", () => {
         },
       },
     });
-    expect(() => validateRequiredEnv(config)).toThrow("REPO_URL (referenced in hook: after_create)");
+    expect(() => validateRequiredEnv(config)).toThrow(
+      "REPO_URL (referenced in hook: after_create)",
+    );
   });
 
   it("passes when hook env vars are set", () => {

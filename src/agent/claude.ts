@@ -58,8 +58,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     child.on("error", () => {});
 
     // CRITICAL: Pipe prompt via stdin, never as positional arg (avoids ENAMETOOLONG)
-    child.stdin!.write(params.prompt);
-    child.stdin!.end();
+    child.stdin?.write(params.prompt);
+    child.stdin?.end();
 
     const id = params.sessionId || `session-${child.pid}-${Date.now()}`;
     this.processes.set(id, child);

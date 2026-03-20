@@ -101,7 +101,7 @@ export class Dashboard {
     lines.push("");
     lines.push(dim(`  Updated: ${snapshot.generatedAt}`));
 
-    this.output.write(lines.join("\n") + "\n");
+    this.output.write(`${lines.join("\n")}\n`);
   }
 }
 

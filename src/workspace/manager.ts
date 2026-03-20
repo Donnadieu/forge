@@ -181,14 +181,14 @@ export class WorkspaceManager {
     // Check if newly created (test for a marker file)
     const testResult = await runSshCommand(
       host,
-      `test -f ${shellEscape(wsPath + "/.forge-initialized")} && echo exists`,
+      `test -f ${shellEscape(`${wsPath}/.forge-initialized`)} && echo exists`,
       sshOpts,
     );
     const isNew = !testResult.stdout.includes("exists");
 
     if (isNew) {
       // Mark as initialized
-      await runSshCommand(host, `touch ${shellEscape(wsPath + "/.forge-initialized")}`, sshOpts);
+      await runSshCommand(host, `touch ${shellEscape(`${wsPath}/.forge-initialized`)}`, sshOpts);
       // Run after_create hook remotely
       if (this.config.hooks.after_create) {
         await this.runRemoteHook(host, "after_create", wsPath, {});

@@ -26,10 +26,11 @@ describe("resolveConfig", () => {
     expect(config.tracker.project_slug).toBe("forge-dev");
   });
 
-  it("resolves ${ENV_VAR} references", () => {
+  it("resolves env var references in config values", () => {
     const config = resolveConfig({
       tracker: {
         kind: "linear",
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${} syntax is the input under test
         project_slug: "${TEST_PROJECT}",
         active_states: ["Todo"],
       },

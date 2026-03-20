@@ -51,8 +51,7 @@ export function validateRequiredEnv(config: WorkflowConfig): void {
 function extractEnvVarRefs(script: string): string[] {
   const refs = new Set<string>();
   const regex = /\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g;
-  let match;
-  while ((match = regex.exec(script)) !== null) {
+  for (let match = regex.exec(script); match !== null; match = regex.exec(script)) {
     const varName = match[1] || match[2];
     if (!SYSTEM_PROVIDED_VARS.has(varName)) {
       refs.add(varName);

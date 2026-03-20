@@ -166,7 +166,7 @@ prompt`,
     store.close();
 
     // Should not throw
-    expect(() => store!.close()).not.toThrow();
+    expect(() => store?.close()).not.toThrow();
   });
 
   it("watch() is idempotent", () => {
