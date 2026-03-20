@@ -34,9 +34,6 @@ export function shouldDispatchIssue(
   // Already claimed (being prepared)
   if (state.claimed.has(issue.id)) return false;
 
-  // Already completed
-  if (state.completed.has(issue.id)) return false;
-
   // Pending retry
   if (state.retryAttempts.has(issue.id)) return false;
 

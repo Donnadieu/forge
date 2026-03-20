@@ -261,52 +261,31 @@ export class Orchestrator {
     this.state.claimed.delete(issue.id);
   }
 
-  private async handleWorkerComplete(
-    issueId: string,
-    result: WorkerResult,
-    attempt: number,
-  ): Promise<void> {
+  private handleWorkerComplete(issueId: string, result: WorkerResult, attempt: number): void {
     const entry = this.state.running.get(issueId);
     if (entry) {
       this.state.secondsRunning += (performance.now() - entry.startedAt) / 1000;
     }
     this.state.running.delete(issueId);
+    this.state.completed.add(issueId);
     this.callbacks.onComplete?.(issueId, result);
 
     if (result.success) {
-      // Check if ticket is still active — if so, schedule continuation
-      try {
-        const states = await this.tracker.fetchIssueStatesByIds([issueId]);
-        const currentState = states.get(issueId);
-        if (currentState && this.config.trackerConfig.active_states.includes(currentState)) {
-          const identifier = entry?.identifier ?? "";
-          const issue = entry?.issue;
-          if (issue) {
-            scheduleRetry(
-              this.state,
-              issueId,
-              identifier,
-              attempt + 1,
-              "continuation",
-              null,
-              this.config.maxRetryDelayMs,
-              (_retryId) => {
-                this.dispatchIssue(issue, attempt + 1).catch((err) => {
-                  const e = err instanceof Error ? err : new Error(String(err));
-                  this.callbacks.onError?.(issueId, e);
-                });
-              },
-              this.config.retryBaseDelayMs,
-            );
-            return;
-          }
-        }
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        this.callbacks.onError?.(issueId, err);
-      }
+      const identifier = entry?.identifier ?? issueId;
+      scheduleRetry(
+        this.state,
+        issueId,
+        identifier,
+        attempt + 1,
+        "continuation",
+        null,
+        this.config.maxRetryDelayMs,
+        (_retryId) => {
+          this.refetchAndDispatch(issueId, attempt + 1, true);
+        },
+        this.config.retryBaseDelayMs,
+      );
     }
-    this.state.completed.add(issueId);
   }
 
   private handleWorkerError(
