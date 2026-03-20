@@ -37,15 +37,16 @@ describe("resolveConfig", () => {
     expect(config.tracker.project_slug).toBe("forge-dev");
   });
 
-  it("leaves unresolved env vars as-is in non-hook strings", () => {
-    const config = resolveConfig({
-      tracker: {
-        kind: "linear",
-        project_slug: "$NONEXISTENT_VAR",
-        active_states: ["Todo"],
-      },
-    });
-    expect(config.tracker.project_slug).toBe("$NONEXISTENT_VAR");
+  it("throws on unresolved env vars in non-hook strings", () => {
+    expect(() =>
+      resolveConfig({
+        tracker: {
+          kind: "linear",
+          project_slug: "$NONEXISTENT_VAR",
+          active_states: ["Todo"],
+        },
+      }),
+    ).toThrow("Missing environment variable(s): NONEXISTENT_VAR");
   });
 
   it("does not expand env vars inside hooks", () => {

@@ -20,12 +20,22 @@ function resolveEnvVars(obj: unknown, skipKeys: Set<string>, currentKey?: string
   if (currentKey && skipKeys.has(currentKey)) return obj;
 
   if (typeof obj === "string") {
-    return obj.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced, bare) => {
+    const missingVars: string[] = [];
+    const result = obj.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced, bare) => {
       const varName = braced || bare;
       const value = process.env[varName];
-      if (value === undefined) return match; // leave unresolved vars as-is
+      if (value === undefined) {
+        missingVars.push(varName);
+        return match;
+      }
       return value;
     });
+    if (missingVars.length > 0) {
+      throw new Error(
+        `Missing environment variable(s): ${missingVars.join(", ")}. Set them in .env or your shell environment.`,
+      );
+    }
+    return result;
   }
   if (Array.isArray(obj)) return obj.map((v) => resolveEnvVars(v, skipKeys));
   if (obj && typeof obj === "object") {

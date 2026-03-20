@@ -15,6 +15,7 @@ import { WorkspaceManager } from "./workspace/manager.js";
 import { Orchestrator } from "./orchestrator/orchestrator.js";
 import { createLogger } from "./observability/logger.js";
 import { loadSkillsManifest } from "./worker/prompt-renderer.js";
+import { validateRequiredEnv } from "./config/env-validator.js";
 
 const program = new Command()
   .name("forge")
@@ -37,6 +38,15 @@ const program = new Command()
     // Parse and validate config
     const store = new WorkflowStore(resolvedPath);
     const { config, promptTemplate } = store.current();
+
+    // Fail fast: verify all required env vars before doing anything else
+    try {
+      validateRequiredEnv(config);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`❌ ${msg}`);
+      process.exit(1);
+    }
 
     // Set up logger — when the TUI dashboard is active, redirect logs to file
     // so the dashboard and logger don't both write to stdout.
