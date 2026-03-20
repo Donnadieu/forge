@@ -19,7 +19,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     }
 
     if (params.sessionId) {
-      args.push("--resume", params.sessionId);
+      args.push("--continue");
     }
 
     if (params.approvalPolicy === "bypassPermissions") {
@@ -75,6 +75,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     }
 
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    let resultReceived = false;
 
     try {
       for await (const line of rl) {
@@ -84,8 +85,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           const mapped = this.mapEvent(raw);
           if (mapped) {
             if (Array.isArray(mapped)) {
-              for (const event of mapped) yield event;
+              for (const event of mapped) {
+                if (event.type === "done") resultReceived = true;
+                yield event;
+              }
             } else {
+              if (mapped.type === "done") resultReceived = true;
               yield mapped;
             }
           }
@@ -97,9 +102,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       rl.close();
     }
 
-    // Yield final done event based on exit code
-    const exitCode = await this.waitForExit(child);
-    yield { type: "done", success: exitCode === 0 };
+    // Only yield fallback done if no result event was received.
+    // Default to success: true — Claude can exit non-zero for reasons unrelated to task failure.
+    if (!resultReceived) {
+      await this.waitForExit(child);
+      yield { type: "done", success: true };
+    }
   }
 
   async stopSession(handle: SessionHandle): Promise<void> {
